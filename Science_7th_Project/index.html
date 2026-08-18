@@ -391,8 +391,8 @@ window.onerror=function(msg,src,line,col,err){
 };
 
 /* ===== Supabase constants (edit these after creating your project) ===== */
-const SB_URL='https://YOUR-PROJECT.supabase.co';
-const SB_KEY='YOUR-ANON-KEY';
+const SB_URL='https://gfjiicfnwpkbkptwgnte.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmamlpY2Zud3BrYmtwdHdnbnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzU0NjQsImV4cCI6MjA5Mjc1MTQ2NH0.yFNCdZ5euxNFneh885pPg3t04KBdwJ6uF3BfQAHTXE4';
 const SB_TABLE='sciencelab_scores';
 
 /* ===== guarded storage ===== */
@@ -1274,7 +1274,12 @@ async function loadBoard(sortKey){
     });
     e.innerHTML=html;
   }catch(err){
-    e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p style="color:var(--bad)">Could not load leaderboard. Check Supabase config.<br><small>'+esc(err.message)+'</small></p>';
+    const missing = /404/.test(String(err.message||''));
+    e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p style="color:var(--bad)">'+
+      (missing
+        ? 'Leaderboard waiting for setup: the <b>SciLab tables</b> have not been created yet. Open your Supabase project → SQL Editor → paste <code>supabase/schema.sql</code> → Run.'
+        : 'Could not load leaderboard. Check the Supabase connection.<br><small>'+esc(err.message)+'</small>')+
+      '</p>';
   }
 }
 

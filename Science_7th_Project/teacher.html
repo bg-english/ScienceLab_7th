@@ -247,8 +247,8 @@ td { padding: 9px 12px; white-space: nowrap; }
 </div>
 
 <script>
-const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
-const SUPABASE_KEY = 'YOUR-ANON-KEY';
+const SUPABASE_URL = 'https://gfjiicfnwpkbkptwgnte.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmamlpY2Zud3BrYmtwdHdnbnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzU0NjQsImV4cCI6MjA5Mjc1MTQ2NH0.yFNCdZ5euxNFneh885pPg3t04KBdwJ6uF3BfQAHTXE4';
 const TABLE = 'sciencelab_scores';
 
 const CONFIGURED = !(SUPABASE_URL.indexOf('YOUR-PROJECT') >= 0 || SUPABASE_KEY.indexOf('YOUR-ANON') >= 0);
@@ -717,8 +717,13 @@ async function refreshData() {
       `Last refreshed: ${now.toLocaleTimeString('en-US', { hour12: false })}`;
   } catch (e) {
     console.error('Fetch error:', e);
+    const missing = /404/.test(String(e.message || ''));
     document.getElementById('mainContent').innerHTML =
-      `<div class="loading-overlay" style="color:var(--bad)">Failed to load data. Make sure Supabase URL &amp; Key are set and the tables exist.<br><small>${esc(e.message)}</small></div>`;
+      `<div class="loading-overlay" style="color:var(--bad)">` +
+      (missing
+        ? `⚙️ Tables not found yet. In your Supabase project, open <b>SQL Editor</b> and run <code>supabase/schema.sql</code> (creates the <code>sciencelab_*</code> tables), then click Refresh.`
+        : `Failed to load data. Check the Supabase connection.<br><small>${esc(e.message)}</small>`) +
+      `</div>`;
   }
   setTimeout(() => icon.classList.remove('spinning'), 600);
 }
