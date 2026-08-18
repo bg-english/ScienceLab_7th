@@ -19,7 +19,8 @@ for Science and for a younger audience.
 |------|---------|
 | `index.html` | Student app (all-in-one HTML: styles + logic) |
 | `teacher.html` | Teacher dashboard (real-time analytics, notices, CSV) |
-| `supabase/schema.sql` | Database tables + security policies |
+| `supabase/schema.sql` | Database tables + basic policies |
+| `supabase/schema_hardened.sql` | **Opt-in security upgrade**: per-student tokens + strict RLS |
 | `supabase/functions/science-explain-topic/index.ts` | AI tutor (explains a topic) |
 | `supabase/functions/science-generate-exercises/index.ts` | AI exercise generator |
 | `build_app.ps1` | Copies the apps into a synced folder |
@@ -98,3 +99,38 @@ uses **Groq** because it is:
 
 Swap to another provider (Gemini Flash, OpenRouter, DeepSeek) by editing the
 `model` and `url` inside the two edge-function files.
+
+---
+
+## Security model & hardening
+
+The base setup is easy to run but has **no real authentication** (students pick a
+name from a roster list) and the base `schema.sql` policies are wide open.
+For production use in school, apply the hardening in this order:
+
+1. **Run `supabase/schema_hardened.sql`** — it replaces the open policies with
+   per-row RLS keyed on a secret token:
+   - Teacher pre-loads each student with a PIN in `student_accounts`
+     (stored as SHA-256 hash, never plaintext).
+   - The student app sends the PIN in the header `x-student-token`.
+   - Students can only read/update **their own** score row; only the teacher can
+     see the whole class, post notices, or read AI-help logs.
+2. **Distribute tokens**: set each student's PIN in the app (JS console:
+   `setToken('STUDENT-PIN')`), or add a settings field in a future release.
+3. **Deploy edge functions with `--verify-jwt`** once you enable Supabase Auth,
+   and add a Supabase table–backed rate limit if you exceed the built-in
+   per-IP bucket.
+
+### Already applied by default
+- HTML-escaped rendering of all database/user data (prevents stored XSS).
+- Edge functions validate + length-limit inputs, guard against prompt
+  injection, return generic errors, and rate-limit per IP.
+- The app never calls Supabase when it is not configured — it shows a friendly
+  setup message instead of a 404/connection error (student leaderboard and
+  teacher dashboard both handle this).
+
+### Next milestones for production scale
+- Server-authoritative scoring (an Edge Function verifies answers and awards XP)
+  so students cannot edit `localStorage` to fake the leaderboard.
+- Supabase Auth with roles (student/teacher/admin) instead of name+PIN.
+- Content moved from the HTML file into database tables with an admin panel.
