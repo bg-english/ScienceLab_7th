@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Firestore security rules for SciLab
+//   - Students sign in anonymously -> each has a stable uid on their device.
+//   - Each student can read/write ONLY their own score document (uid = doc id).
+//   - Only the teacher (uid listed in /admins) can read everything.
+// To promote your teacher account:
+//   1) Sign in to the teacher dashboard once (it uses Anonymous auth) OR
+//   2) In Firebase Console -> Firestore -> add a doc in /admins with id = your uid.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isTeacher() {
+      return request.auth != null && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isOwner(doc) {
+      return request.auth != null && request.auth.uid == doc.id;
+    }
+
+    // Admin registry (teacher only manages it)
+    match /admins/{uid} {
+      allow read: if isTeacher();
+      allow write: if isTeacher();
+    }
+
+    // Student scores: own doc only (teacher can read all for the dashboard)
+    match /scores/{docId} {
+      allow read: if isTeacher() || isOwner(resource.data);
+      allow write: if isTeacher() || (request.auth != null
+        && request.auth.uid == docId
+        && request.resource.data.uid == request.auth.uid);
+      allow delete: if isTeacher();
+    }
+
+    // AI help logs: students can create their own; teacher reads all
+    match /interventions/{id} {
+      allow read: if isTeacher();
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isTeacher();
+    }
+
+    // Notices: students read active ones; teacher writes
+    match /notices/{id} {
+      allow read: if request.auth != null;
+      allow create, update, delete: if isTeacher();
+    }
+
+    // Read receipts: students create their own; teacher reads all
+    match /notice_reads/{id} {
+      allow read: if isTeacher() || request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isTeacher();
+    }
+  }
+}

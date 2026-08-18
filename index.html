@@ -7,7 +7,10 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#0F3D2E">
 <title>SciLab — Boston Flex — 7th Grade Science</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Lexend:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -390,10 +393,33 @@ window.onerror=function(msg,src,line,col,err){
   return false;
 };
 
-/* ===== Supabase constants (edit these after creating your project) ===== */
-const SB_URL='https://gfjiicfnwpkbkptwgnte.supabase.co';
-const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmamlpY2Zud3BrYmtwdHdnbnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzU0NjQsImV4cCI6MjA5Mjc1MTQ2NH0.yFNCdZ5euxNFneh885pPg3t04KBdwJ6uF3BfQAHTXE4';
-const SB_TABLE='sciencelab_scores';
+/* ===== Firebase config (paste your firebaseConfig values here) ===== */
+const FIREBASE_CONFIG={
+  apiKey:'PEGA-TU-APIKEY',
+  authDomain:'PEGA-TU-AUTHDOMAIN',
+  projectId:'PEGA-TU-PROJECTID',
+  storageBucket:'PEGA-TU-STORAGEBUCKET',
+  messagingSenderId:'PEGA-TU-SENDERID',
+  appId:'PEGA-TU-APPID'
+};
+const FB_CONFIGURED = FIREBASE_CONFIG.apiKey.indexOf('PEGA') < 0;
+
+let firebaseApp=null, db=null, auth=null, myUid=null, firebaseReady=false;
+function initFirebase(){
+  if(!FB_CONFIGURED||typeof firebase==='undefined')return false;
+  try{
+    firebaseApp=firebase.initializeApp(FIREBASE_CONFIG);
+    db=firebase.firestore(firebaseApp);
+    auth=firebase.auth(firebaseApp);
+    return true;
+  }catch(e){console.warn('Firebase init failed',e);return false;}
+}
+async function ensureAuth(){
+  if(!FB_CONFIGURED)return false;
+  if(auth.currentUser){myUid=auth.currentUser.uid;return true;}
+  try{const c=await auth.signInAnonymously();myUid=c.user.uid;firebaseReady=true;return true;}
+  catch(e){console.warn('Anon sign-in failed',e);return false;}
+}
 
 /* ===== guarded storage ===== */
 const Store=(()=>{let ok=false,mem={};try{const k="__sl";localStorage.setItem(k,"1");localStorage.removeItem(k);ok=true;}catch(e){ok=false;}
@@ -827,7 +853,10 @@ function fetchAIExercises(callback,focusSkill){
   var skillLevels={};Object.keys(SKILLS).forEach(function(s){skillLevels[s]=(state.skillLvl[s]||{lv:1}).lv;});
   var payload={level:state.level,mastery:state.mastery||{},skillLevels:skillLevels,count:5,seenQuestions:Object.keys(state.seenQ).slice(-40)};
   if(focusSkill)payload.skill=focusSkill;
-  fetch(SB_URL+'/functions/v1/science-generate-exercises',{method:'POST',headers:Object.assign({'Content-Type':'application/json'},sbAuth()),body:JSON.stringify(payload)}).then(function(r){return r.json();}).then(function(data){callback(data.exercises||[]);}).catch(function(){callback([]);});
+  if(!FB_CONFIGURED||typeof firebase==='undefined'||!firebase.functions){callback([]);return;}
+  firebase.functions(firebaseApp).httpsCallable('scienceGenerateExercises')(payload)
+    .then(function(res){callback((res.data&&res.data.exercises)||[]);})
+    .catch(function(){callback([]);});
 }
 function renderItem(){
   const e=document.getElementById('v-practice');
@@ -942,10 +971,16 @@ function showIntervention(skill){
   setTimeout(function(){var t=document.getElementById('intervText');if(t)t.focus();},200);
 }
 function logIntervention(skill,confusion,response){
-  fetch(SB_URL+'/rest/v1/sciencelab_interventions',{
-    method:'POST',
-    headers:sbHeaders(),
-    body:JSON.stringify({student_name:playerName||'anonymous',section:playerSection||null,skill:skill,confusion:confusion,response:response,level:state.level,created_at:new Date().toISOString()})
+  if(!FB_CONFIGURED||!db)return;
+  db.collection('interventions').add({
+    uid:myUid||null,
+    name:playerName||'anonymous',
+    section:playerSection||null,
+    skill:skill,
+    confusion:confusion,
+    response:response,
+    level:state.level,
+    createdAt:new Date().toISOString()
   }).catch(function(){});
 }
 function submitIntervention(skill){
@@ -955,23 +990,29 @@ function submitIntervention(skill){
   var _em=['🔍 Reading your question…','💡 Building your explanation…','📚 Finding the best examples…','🎬 Almost done!'];theory.innerHTML=flLoaderHTML(_em);startLoaderRotation(_em,1300);
   document.querySelector('.interv-card textarea').disabled=true;
   document.querySelectorAll('.interv-actions .btn').forEach(function(b){b.disabled=true;});
-  fetch(SB_URL+'/functions/v1/science-explain-topic',{
-    method:'POST',
-    headers:Object.assign({'Content-Type':'application/json'},sbAuth()),
-    body:JSON.stringify({skill:skill,confusion:confusion,level:state.level})
-  })
-  .then(function(r){return r.json();})
-  .then(function(data){
-    stopLoader();
-    if(data.error){theory.innerHTML='<p style="color:var(--bad)">Could not load explanation. Try again later.</p>';document.querySelectorAll('.interv-actions .btn').forEach(function(b){b.disabled=false;});return;}
-    logIntervention(skill,confusion,data.explanation||'');
-    theory.innerHTML='<div class="interv-explain">'+data.explanation+'</div>'+
-      '<div style="margin-top:20px;text-align:center"><button class="btn btn-green" onclick="closeIntervention()">✅ Got it! Continue →</button></div>';
-  })
-  .catch(function(){
-    stopLoader();
-    theory.innerHTML='<p style="color:var(--bad)">Connection error. <button class="btn btn-ghost" style="margin-top:8px" onclick="closeIntervention()">Continue</button></p>';
-  });
+  const call=async function(){
+    if(!FB_CONFIGURED||typeof firebase==='undefined'||!firebase.functions){
+      stopLoader();
+      theory.innerHTML='<p style="color:var(--bad)">AI tutor is not configured yet (see README).<br><button class="btn btn-ghost" style="margin-top:8px" onclick="closeIntervention()">Continue</button></p>';
+      document.querySelectorAll('.interv-actions .btn').forEach(function(b){b.disabled=false;});
+      return;
+    }
+    try{
+      const fn=firebase.functions(firebaseApp).httpsCallable('scienceExplainTopic');
+      const res=await fn({skill:skill,confusion:confusion,level:state.level});
+      stopLoader();
+      const data=res.data||{};
+      if(data.error){theory.innerHTML='<p style="color:var(--bad)">'+esc(data.error)+'</p>';document.querySelectorAll('.interv-actions .btn').forEach(function(b){b.disabled=false;});return;}
+      logIntervention(skill,confusion,data.explanation||'');
+      theory.innerHTML='<div class="interv-explain">'+esc(data.explanation)+'</div>'+
+        '<div style="margin-top:20px;text-align:center"><button class="btn btn-green" onclick="closeIntervention()">✅ Got it! Continue →</button></div>';
+    }catch(e){
+      stopLoader();
+      theory.innerHTML='<p style="color:var(--bad)">Connection error. <button class="btn btn-ghost" style="margin-top:8px" onclick="closeIntervention()">Continue</button></p>';
+      document.querySelectorAll('.interv-actions .btn').forEach(function(b){b.disabled=false;});
+    }
+  };
+  call();
 }
 function closeIntervention(){
   var o=document.getElementById('intervOverlay');
@@ -1251,35 +1292,30 @@ function finishExam(){
 /* ===== LEADERBOARD ===== */
 async function loadBoard(sortKey){
   const e=document.getElementById('v-board');
-  if(SB_URL.indexOf('YOUR-PROJECT')>=0){
-    e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><div class="eq-fb ok" style="max-width:520px;margin:0 auto">🔧 Leaderboard is off until Supabase is configured. Open <b>index.html</b> and set <code>SB_URL</code> and <code>SB_KEY</code> (see README). Everything else works without it!</div>';
+  if(!FB_CONFIGURED){
+    e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><div class="eq-fb ok" style="max-width:520px;margin:0 auto">🔧 Leaderboard is off until Firebase is configured. Open <b>index.html</b> and paste your <code>FIREBASE_CONFIG</code> (see README). Everything else works without it!</div>';
     return;
   }
   e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><div class="fl-loader"><div class="fl-ring"></div><div class="fl-msg">Loading the class…</div></div>';
   try{
-    const res=await fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?section=neq.teacher&select=*&order='+(sortKey==='xp'?'total_xp':sortKey)+'.desc',{headers:sbAuth()});
-    if(!res.ok)throw new Error('HTTP '+res.status);
-    const rows=await res.json();
-    let sorted=rows.filter(r=>r.total_xp||r.xp).sort((a,b)=>(b.total_xp||b.xp||0)-(a.total_xp||a.xp||0));
+    const snap=await db.collection('scores').get();
+    let rows=snap.docs.map(d=>({id:d.id,...d.data()}));
+    let sorted=rows.filter(r=>r.name&&(r.totalXp||r.xp)).sort((a,b)=>(b.totalXp||b.xp||0)-(a.totalXp||a.xp||0));
     if(!sorted.length){
       e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p>No data yet — be the first to practice and appear here!</p>';
       return;
     }
     let html='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p class="h-sub">Ranked by total XP. Practice to climb the leaderboard!</p>';
     sorted.forEach((r,i)=>{
-      const safeName=esc(r.student_name||'---');
-      const isMe=playerName&&r.student_name===playerName;
+      const safeName=esc(r.name||'---');
+      const isMe=playerName&&r.name===playerName;
       const rankCls=i===0?'r1':i===1?'r2':i===2?'r3':'';
-      html+='<div class="lb-card '+(i<3?'top':'')+(isMe?' lb-me':'')+'"><div class="lb-rank '+rankCls+'">'+(i+1)+'</div><div class="lb-name">'+safeName+(isMe?' <span class="badge" style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:.6rem">YOU</span>':'')+'<small>Level '+esc(r.level)+' · '+esc(r.answered)+' answers · '+esc(r.accuracy??0)+'% acc</small></div><div class="lb-xp">⚡ '+(r.total_xp||r.xp||0).toLocaleString()+'</div></div>';
+      const acc=r.answered>0?Math.round(r.correct/r.answered*100):0;
+      html+='<div class="lb-card '+(i<3?'top':'')+(isMe?' lb-me':'')+'"><div class="lb-rank '+rankCls+'">'+(i+1)+'</div><div class="lb-name">'+safeName+(isMe?' <span class="badge" style="background:var(--green);color:#fff;padding:2px 8px;border-radius:10px;font-size:.6rem">YOU</span>':'')+'<small>Level '+esc(r.level)+' · '+esc(r.answered)+' answers · '+acc+'% acc</small></div><div class="lb-xp">⚡ '+(r.totalXp||r.xp||0).toLocaleString()+'</div></div>';
     });
     e.innerHTML=html;
   }catch(err){
-    const missing = /404/.test(String(err.message||''));
-    e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p style="color:var(--bad)">'+
-      (missing
-        ? 'Leaderboard waiting for setup: the <b>SciLab tables</b> have not been created yet. Open your Supabase project → SQL Editor → paste <code>supabase/schema.sql</code> → Run.'
-        : 'Could not load leaderboard. Check the Supabase connection.<br><small>'+esc(err.message)+'</small>')+
-      '</p>';
+    e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p style="color:var(--bad)">Could not load leaderboard. Check the Firebase connection or Firestore rules.<br><small>'+esc(err.message)+'</small></p>';
   }
 }
 
@@ -1332,56 +1368,51 @@ function submitName(){
   playerName=name;
   Store.set('sl_player_name',playerName);
   document.getElementById('nameModal').classList.add('hidden');
-  syncToSupabase();
-  renderHUD();
-  renderDash();
-  toast('Welcome, '+firstName()+'! 🌿','good');
+  ensureAuth().then(function(){
+    syncToSupabase();
+    renderHUD();
+    renderDash();
+    toast('Welcome, '+firstName()+'! 🌿','good');
+  });
 }
 
-/* ===== Supabase sync ===== */
-let playerToken=Store.get('sl_player_token',null);
-function setToken(t){playerToken=(t||'').trim()||null;Store.set('sl_player_token',playerToken);}
-function sbAuth(){const h={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};if(playerToken)h['x-student-token']=playerToken;return h;}
-function sbHeaders(){const h=sbAuth();h['Content-Type']='application/json';h['Prefer']='resolution=merge-duplicates';return h;}
+/* ===== Firebase sync ===== */
 let syncTimer=null;
 function buildSyncBody(){
   return {
-    student_name:playerName,
+    uid:myUid,
+    name:playerName,
     section:playerSection||null,
     xp:state.xp,
-    total_xp:state.totalXp,
+    totalXp:state.totalXp,
     level:state.level,
-    streak:state.streak,
+    streak:state.streak||0,
     answered:state.answered,
     correct:state.correct,
-    exam_score:state.lastExamScore!=null?state.lastExamScore:null,
-    best_exam_score:state.bestExamScore!=null?state.bestExamScore:null,
+    examScore:state.lastExamScore!=null?state.lastExamScore:null,
+    bestExamScore:state.bestExamScore!=null?state.bestExamScore:null,
     badges:state.badges,
     mastery:state.mastery,
-    skill_lvl:state.skillLvl,
-    card_box:state.cardBox||{},
-    updated_at:new Date().toISOString()
+    skillLvl:state.skillLvl,
+    cardBox:state.cardBox||{},
+    updatedAt:new Date().toISOString()
   };
 }
-function doSync(){
-  var body=buildSyncBody();
-  fetch(SB_URL+'/rest/v1/'+SB_TABLE+'?on_conflict=student_name',{
-    method:'POST',
-    headers:sbHeaders(),
-    body:JSON.stringify(body)
-  }).then(function(r){
-    if(!r.ok){console.warn('Sync failed:',r.status);showSyncStatus('error');}
-    else showSyncStatus('ok');
-  }).catch(function(e){console.warn('Sync error:',e);showSyncStatus('error');});
+async function doSync(){
+  if(!FB_CONFIGURED||!myUid||!playerName)return;
+  try{
+    await db.collection('scores').doc(myUid).set(buildSyncBody(),{merge:true});
+    showSyncStatus('ok');
+  }catch(e){console.warn('Sync error:',e);showSyncStatus('error');}
 }
 function syncToSupabase(){
-  if(!playerName||SB_URL.indexOf('YOUR-PROJECT')>=0)return;
+  if(!FB_CONFIGURED||!myUid)return;
   clearTimeout(syncTimer);
   showSyncStatus('syncing');
-  syncTimer=setTimeout(doSync,1500);
+  syncTimer=setTimeout(function(){doSync();},1500);
 }
 function syncNow(){
-  if(!playerName||SB_URL.indexOf('YOUR-PROJECT')>=0)return;
+  if(!FB_CONFIGURED||!myUid)return;
   clearTimeout(syncTimer);
   showSyncStatus('syncing');
   doSync();
@@ -1391,38 +1422,42 @@ function showSyncStatus(s){
   var lb=document.getElementById('syncLabel');
   if(!el||!lb)return;
   el.className='sync-indicator '+s;
-  lb.textContent=s==='ok'?'Synced':s==='error'?'Offline':s==='syncing'?'Saving…':'Ready';
+  lb.textContent=s==='ok'?'Synced':s==='error'?'Offline':s==='syncing'?'Saving…':(FB_CONFIGURED?'Ready':'Setup');
 }
 
-/* ===== NOTICE POLLER ===== */
-async function pollNotices(){
-  if(SB_URL.indexOf('YOUR-PROJECT')>=0)return;
+/* ===== NOTICE LISTENER (realtime) ===== */
+let noticeUnsub=null;
+function watchNotices(){
+  if(!FB_CONFIGURED||!db)return;
+  if(noticeUnsub){noticeUnsub();noticeUnsub=null;}
   try{
-    const res=await fetch(SB_URL+'/rest/v1/sciencelab_notices?active=eq.true&select=id,message,created_at&order=created_at.desc&limit=1',{headers:sbAuth()});
-    if(!res.ok)return;
-    const data=await res.json();
-    const bar=document.getElementById('noticeBar');
-    if(data.length){
-      const n=data[0];
-      bar.innerHTML='📢 <b>Teacher:</b> '+esc(n.message)+' <button onclick="ackNotice(\''+escAttr(n.id)+'\')" style="background:rgba(255,255,255,.25);color:#fff;border:none;padding:4px 14px;border-radius:20px;font-family:inherit;font-weight:600;cursor:pointer">✓ Got it</button>';
-      bar.classList.remove('hidden');
-    } else {
-      bar.classList.add('hidden');
-    }
-  }catch(e){}
+    noticeUnsub=db.collection('notices')
+      .where('active','==',true)
+      .orderBy('createdAt','desc')
+      .limit(1)
+      .onSnapshot(function(snap){
+        const bar=document.getElementById('noticeBar');
+        if(snap.empty){bar.classList.add('hidden');return;}
+        const n=snap.docs[0].data();
+        const id=snap.docs[0].id;
+        bar.innerHTML='📢 <b>Teacher:</b> '+esc(n.message)+' <button onclick="ackNotice(\''+escAttr(id)+'\')" style="background:rgba(255,255,255,.25);color:#fff;border:none;padding:4px 14px;border-radius:20px;font-family:inherit;font-weight:600;cursor:pointer">✓ Got it</button>';
+        bar.classList.remove('hidden');
+      },function(err){console.warn('Notice listener error',err);});
+  }catch(e){console.warn('watchNotices error',e);}
 }
 async function ackNotice(id){
-  if(!playerName)return;
+  if(!FB_CONFIGURED||!myUid||!playerName)return;
   try{
-    await fetch(SB_URL+'/rest/v1/sciencelab_notice_reads',{
-      method:'POST',
-      headers:sbHeaders(),
-      body:JSON.stringify({notice_id:id,student_name:playerName,section:playerSection||null,read_at:new Date().toISOString()})
+    await db.collection('notice_reads').add({
+      noticeId:id,
+      uid:myUid,
+      name:playerName,
+      section:playerSection||null,
+      readAt:new Date().toISOString()
     });
   }catch(e){}
   document.getElementById('noticeBar').classList.add('hidden');
 }
-setInterval(pollNotices,20000);
 
 /* ===== ACCESSIBILITY ===== */
 function trapFocus(el){
@@ -1458,6 +1493,11 @@ function init(){
   renderWrite();
   renderExamIntro();
   go('dash');
+  initFirebase();
+  ensureAuth().then(function(){
+    if(playerName)syncToSupabase();
+    watchNotices();
+  });
   // Auto-suggest weakest skill banner
   if(state.answered>=5){
     var weak=getWeakestSkill();
@@ -1466,7 +1506,7 @@ function init(){
         var banner=document.createElement('div');
         banner.id='rfBanner';
         banner.style.cssText='position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;background:linear-gradient(135deg,#0F3D2E,#1F8A4C);color:#fff;padding:16px 24px;border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.25);display:flex;align-items:center;gap:14px;max-width:540px;width:90%;animation:fade .5s';
-        banner.innerHTML='<div style="font-size:2rem;flex-shrink:0">🎯</div><div style="flex:1"><div style="font-family:Bricolage Grotesque;font-weight:700;font-size:.95rem">Your weakest topic: '+SKILLS[weak[0]]+' ('+weak[1]+'%)</div><div style="font-size:.8rem;opacity:.8;margin-top:2px">Read the theory and practice to build confidence!</div></div><button onclick="document.getElementById(\'rfBanner\').remove();go(\'reinforce\')" style="background:var(--gold);color:var(--ink);border:none;padding:8px 16px;border-radius:10px;font-weight:700;font-size:.82rem;cursor:pointer;white-space:nowrap">Reinforce →</button><button onclick="document.getElementById(\'rfBanner\').remove()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;opacity:.6;padding:4px 8px">✕</button>';
+        banner.innerHTML='<div style="font-size:2rem;flex-shrink:0">🎯</div><div style="flex:1"><div style="font-family:Bricolage Grotesque;font-weight:700;font-size:.95rem">Your weakest topic: '+esc(SKILLS[weak[0]]||'')+' ('+weak[1]+'%)</div><div style="font-size:.8rem;opacity:.8;margin-top:2px">Read the theory and practice to build confidence!</div></div><button onclick="document.getElementById(\'rfBanner\').remove();go(\'reinforce\')" style="background:var(--gold);color:var(--ink);border:none;padding:8px 16px;border-radius:10px;font-weight:700;font-size:.82rem;cursor:pointer;white-space:nowrap">Reinforce →</button><button onclick="document.getElementById(\'rfBanner\').remove()" style="background:none;border:none;color:#fff;font-size:1.2rem;cursor:pointer;opacity:.6;padding:4px 8px">✕</button>';
         document.body.appendChild(banner);
         setTimeout(function(){var b=document.getElementById('rfBanner');if(b)b.remove();},15000);
       },1500);
@@ -1475,7 +1515,7 @@ function init(){
 }
 
 init();
-if(!playerName){showNameModal();}else{syncToSupabase();setTimeout(pollNotices,1000);}
+if(!playerName){showNameModal();}
 </script>
 </body>
 </html>

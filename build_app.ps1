@@ -1,7 +1,6 @@
 # ============================================================
 # SciLab — Build & Sync Script (Windows PowerShell)
-# Copies the student/teacher apps into a synced project folder,
-# mirroring the Future_and_conditionals repo convention.
+# Copies the student/teacher apps into a synced project folder.
 # ============================================================
 param(
   [string]$ProjectRoot = "C:\BOSTON FLEX\SCIENCE PROJECTS",

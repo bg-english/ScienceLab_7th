@@ -19,12 +19,10 @@ for Science and for a younger audience.
 |------|---------|
 | `index.html` | Student app (all-in-one HTML: styles + logic) |
 | `teacher.html` | Teacher dashboard (real-time analytics, notices, CSV) |
-| `supabase/schema.sql` | Database tables + basic policies |
-| `supabase/schema_hardened.sql` | **Opt-in security upgrade**: per-student tokens + strict RLS |
-| `supabase/functions/science-explain-topic/index.ts` | AI tutor (explains a topic) |
-| `supabase/functions/science-generate-exercises/index.ts` | AI exercise generator |
+| `firebase/functions/index.js` | Cloud Functions — AI tutor + AI exercise generator (Groq proxy) |
+| `firebase/firestore.rules` | Firestore security rules (students own their data, teacher reads all) |
+| `firebase/firebase.json` / `.firebaserc` | Firebase project config for deployment |
 | `build_app.ps1` | Copies the apps into a synced folder |
-| `CHANGELOG.md` | Version history |
 
 ---
 
@@ -43,94 +41,73 @@ for Science and for a younger audience.
 - **AI-generated exercises** — adaptive, focused on the student's weak skills
 - **Writing lab** — the meaningful learning experiences (song, poster, model report)
 - **Final exam** with best-score tracking
-- **Teacher dashboard** — live tracking, skill heatmap, weakness analysis, section
-  comparison, notices with read receipts, intervention (AI help) logs, CSV export
+- **Teacher dashboard** — live real-time tracking, skill heatmap, weakness analysis,
+  section comparison, notices with read receipts, intervention (AI help) logs, CSV export
 
 ---
 
-## 1. Set up Supabase (backend)
+## Setup (Firebase + Groq)
 
-1. Create a free project at **https://supabase.com** (the free tier is enough).
-2. In the dashboard, open **SQL Editor** and run the contents of
-   `supabase/schema.sql`. This creates the tables:
-   - `sciencelab_scores` — student state
-   - `sciencelab_interventions` — AI help logs
-   - `sciencelab_notices` / `sciencelab_notice_reads` — teacher messages
-3. Copy your project **URL** (`https://xxxx.supabase.co`) and **anon public key**
-   from **Settings → API**.
-4. Paste them into **both** `index.html` and `teacher.html`:
-   - `const SB_URL = 'https://YOUR-PROJECT.supabase.co';`
-   - `const SB_KEY = 'YOUR-ANON-KEY';`
-   - (`teacher.html` uses `SUPABASE_URL` / `SUPABASE_KEY`)
+The app works offline immediately (Learning, Practice, Flashcards, Exam).
+To activate the cloud (leaderboard, teacher dashboard, AI), do this:
 
-## 2. Deploy the AI functions (Groq)
+### 1. Create the Firebase project (5 min)
 
-1. Get a free API key at **https://console.groq.com** (free tier: ~1M tokens/day —
-   more than enough for a classroom; it is also extremely fast).
-2. Install the Supabase CLI: `npm install -g supabase`
-3. From the project folder:
-   ```
-   supabase link --project-ref YOUR_PROJECT_REF
-   supabase secrets set GROQ_API_KEY=your_groq_key
-   supabase functions deploy science-explain-topic --no-verify-jwt
-   supabase functions deploy science-generate-exercises --no-verify-jwt
-   ```
+1. Go to **https://console.firebase.google.com** with any Google account.
+2. **Add project** → name it (e.g. `scilab-7th`) → Create.
+3. **Authentication** → *Get started* → **Sign-in method** → enable **Anonymous** → Save.
+4. **Firestore Database** → *Create database* → **Production mode** → region near you.
+5. **Project settings (⚙️) → Your apps → Web app (`</>`)** → register the app →
+   copy the `firebaseConfig` object.
+6. Paste those 6 values into **both** `index.html` and `teacher.html` (the
+   `FIREBASE_CONFIG` object at the top of each file). The apiKey of Firebase is
+   public by design — it is not a secret.
 
-## 3. Edit the class roster
+### 2. Apply the security rules (2 min)
 
-In `index.html`, find the `ROSTER` object and replace the placeholder names
-(`Student Blue 1…`, `Student Red 1…`) with your real 7th Blue and 7th Red lists.
+1. In Firebase Console → **Firestore Database → Rules** → paste the contents of
+   `firebase/firestore.rules` → Publish.
+2. To give yourself (the teacher) admin access: create a document in the `admins`
+   collection whose ID is your Firebase uid. Your uid appears in the Authentication
+   tab after you open the app once, or use the console user list.
 
-## 4. Serve the app
+### 3. Deploy the AI functions (5 min)
 
-Just open `index.html` in a browser, or host it anywhere (GitHub Pages, Netlify,
-Vercel, or a school web server). The teacher opens `teacher.html`.
+1. Create a free API key at **https://console.groq.com** → API Keys.
+2. In a terminal (PowerShell), from the `firebase` folder:
 
----
+```
+cd "C:\BOSTON FLEX\SCIENCE PROJECTS\firebase"
+npm install
+npm install -g firebase-tools
+firebase login
+firebase use --add
+firebase functions:secrets:set GROQ_API_KEY
+firebase deploy --only functions
+```
 
-## AI provider notes (why Groq)
+When prompted for the secret value, paste your Groq API key. It is stored in
+Google Secret Manager — it never appears in the app code.
 
-The original repo used Supabase Edge Functions with a hosted LLM. This version
-uses **Groq** because it is:
+### 4. Publish the app
 
-- **Fast** — Llama 3.3 70B answers in under a second
-- **Cheap / free** — a generous free tier, no credit card needed
-- **Simple** — one API key, one endpoint, compatible with OpenAI-style requests
-
-Swap to another provider (Gemini Flash, OpenRouter, DeepSeek) by editing the
-`model` and `url` inside the two edge-function files.
+The site is hosted on GitHub Pages: **https://bg-english.github.io/ScienceLab_7th/**
+(updated automatically when you push). The teacher dashboard is at
+**https://bg-english.github.io/ScienceLab_7th/teacher.html**
 
 ---
 
-## Security model & hardening
+## Security model (Firestore rules)
 
-The base setup is easy to run but has **no real authentication** (students pick a
-name from a roster list) and the base `schema.sql` policies are wide open.
-For production use in school, apply the hardening in this order:
+- Students sign in **anonymously** — each gets a stable uid on their device.
+- Students can read/write **only their own** score document (the document id is
+  their uid). They cannot see or modify other students' data.
+- Only the teacher (document in `admins`) can read the whole class, post notices,
+  and read AI-help logs.
+- The Groq key lives only in Google Secret Manager — never in the client.
+- All database/user data is HTML-escaped before rendering (no stored XSS).
 
-1. **Run `supabase/schema_hardened.sql`** — it replaces the open policies with
-   per-row RLS keyed on a secret token:
-   - Teacher pre-loads each student with a PIN in `student_accounts`
-     (stored as SHA-256 hash, never plaintext).
-   - The student app sends the PIN in the header `x-student-token`.
-   - Students can only read/update **their own** score row; only the teacher can
-     see the whole class, post notices, or read AI-help logs.
-2. **Distribute tokens**: set each student's PIN in the app (JS console:
-   `setToken('STUDENT-PIN')`), or add a settings field in a future release.
-3. **Deploy edge functions with `--verify-jwt`** once you enable Supabase Auth,
-   and add a Supabase table–backed rate limit if you exceed the built-in
-   per-IP bucket.
-
-### Already applied by default
-- HTML-escaped rendering of all database/user data (prevents stored XSS).
-- Edge functions validate + length-limit inputs, guard against prompt
-  injection, return generic errors, and rate-limit per IP.
-- The app never calls Supabase when it is not configured — it shows a friendly
-  setup message instead of a 404/connection error (student leaderboard and
-  teacher dashboard both handle this).
-
-### Next milestones for production scale
-- Server-authoritative scoring (an Edge Function verifies answers and awards XP)
-  so students cannot edit `localStorage` to fake the leaderboard.
-- Supabase Auth with roles (student/teacher/admin) instead of name+PIN.
-- Content moved from the HTML file into database tables with an admin panel.
+### Known limitation / next milestone
+XP is still computed client-side, so a student could edit their own browser
+storage. For a truly cheat-proof leaderboard, the next step is a server-authoritative
+scoring function (a Cloud Function that verifies answers and awards XP).

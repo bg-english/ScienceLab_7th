@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SciLab - Teacher Dashboard</title>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700&family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
 <style>
 :root {
   --cream: #FBF6EA;
@@ -246,12 +249,27 @@ td { padding: 9px 12px; white-space: nowrap; }
   </div>
 </div>
 
-<script>
-const SUPABASE_URL = 'https://gfjiicfnwpkbkptwgnte.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdmamlpY2Zud3BrYmtwdHdnbnRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxNzU0NjQsImV4cCI6MjA5Mjc1MTQ2NH0.yFNCdZ5euxNFneh885pPg3t04KBdwJ6uF3BfQAHTXE4';
-const TABLE = 'sciencelab_scores';
+<script>const FIREBASE_CONFIG = {
+  apiKey: 'PEGA-TU-APIKEY',
+  authDomain: 'PEGA-TU-AUTHDOMAIN',
+  projectId: 'PEGA-TU-PROJECTID',
+  storageBucket: 'PEGA-TU-STORAGEBUCKET',
+  messagingSenderId: 'PEGA-TU-SENDERID',
+  appId: 'PEGA-TU-APPID'
+};
+const FB_CONFIGURED = FIREBASE_CONFIG.apiKey.indexOf('PEGA') < 0;
+const CONFIGURED = FB_CONFIGURED;
 
-const CONFIGURED = !(SUPABASE_URL.indexOf('YOUR-PROJECT') >= 0 || SUPABASE_KEY.indexOf('YOUR-ANON') >= 0);
+let firebaseApp = null, db = null, auth = null;
+function initFirebase() {
+  if (!FB_CONFIGURED || typeof firebase === 'undefined') return false;
+  try {
+    firebaseApp = firebase.initializeApp(FIREBASE_CONFIG, 'scilab-teacher');
+    db = firebase.firestore(firebaseApp);
+    auth = firebase.auth(firebaseApp);
+    return true;
+  } catch (e) { console.warn('Firebase init failed', e); return false; }
+}
 
 // HTML escaping to prevent stored XSS from DB data
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
@@ -259,7 +277,7 @@ function escAttr(s){return esc(s).replace(/`/g,'&#96;');}
 
 let allStudents = [];
 let currentFilter = 'all';
-let sortCol = 'student_name';
+let sortCol = 'name';
 let sortAsc = true;
 let autoRefreshTimer = null;
 
@@ -277,16 +295,6 @@ const SKILLS = [
   { key: 'resp-care', label: 'Resp. Care' },
   { key: 'resp-vocab', label: 'Resp. Vocabulary' }
 ];
-
-async function fetchStudents() {
-  if (!CONFIGURED) return [];
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/${TABLE}?section=neq.teacher&select=*`,
-    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-  );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
-}
 
 function filtered() {
   if (currentFilter === 'all') return allStudents;
@@ -340,16 +348,16 @@ function avg(arr, key) {
 function render() {
   const students = filtered();
   const totalStudents = students.length;
-  const avgAcc = avg(students, 'accuracy');
-  const examStudents = students.filter(s => s.exam_score != null);
-  const avgExam = avg(examStudents, 'exam_score');
+  const accByStudent = students.map(s => ({ ...s, accuracy: s.answered > 0 ? Math.round(s.correct / s.answered * 100) : 0 }));
+  const avgAcc = avg(accByStudent, 'accuracy');
+  const examStudents = students.filter(s => s.examScore != null);
+  const avgExam = avg(examStudents, 'examScore');
 
   let html = '';
 
-  // Summary cards
   const avgStreak = avg(students, 'streak');
   const totalBadges = students.reduce((sum, s) => sum + (Array.isArray(s.badges) ? s.badges.length : 0), 0);
-  const avgBestExam = avg(students.filter(s => s.best_exam_score != null), 'best_exam_score');
+  const avgBestExam = avg(students.filter(s => s.bestExamScore != null), 'bestExamScore');
   html += `<div class="summary-row">
     <div class="summary-card"><div class="label">Total Students</div><div class="value blue">${totalStudents}</div></div>
     <div class="summary-card"><div class="label">Avg Accuracy</div><div class="value green">${avgAcc != null ? avgAcc.toFixed(1) + '%' : '---'}</div></div>
@@ -362,10 +370,10 @@ function render() {
 
   // Class overview table
   html += `<div class="section-title">Class Overview</div>`;
-  const sorted = [...students].sort((a, b) => {
+  const sorted = [...accByStudent].sort((a, b) => {
     let va = a[sortCol], vb = b[sortCol];
-    if (sortCol === 'student_name') { va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase(); }
-    if (sortCol === 'updated_at') { va = va ? new Date(va).getTime() : 0; vb = vb ? new Date(vb).getTime() : 0; }
+    if (sortCol === 'name') { va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase(); }
+    if (sortCol === 'updatedAt') { va = va ? new Date(va).getTime() : 0; vb = vb ? new Date(vb).getTime() : 0; }
     if (va == null) va = -Infinity;
     if (vb == null) vb = -Infinity;
     if (va < vb) return sortAsc ? -1 : 1;
@@ -381,38 +389,38 @@ function render() {
 
   html += `<div class="table-wrap"><table>
     <thead><tr>
-      ${thSort('student_name','Name')}
+      ${thSort('name','Name')}
       ${thSort('section','Section')}
       ${thSort('level','Level')}
-      ${thSort('total_xp','XP')}
+      ${thSort('totalXp','XP')}
       ${thSort('streak','Streak')}
       ${thSort('answered','Answered')}
       ${thSort('accuracy','Accuracy')}
-      ${thSort('exam_score','Last Exam')}
-      ${thSort('best_exam_score','Best Exam')}
+      ${thSort('examScore','Last Exam')}
+      ${thSort('bestExamScore','Best Exam')}
       <th>Badges</th>
-      ${thSort('updated_at','Last Active')}
+      ${thSort('updatedAt','Last Active')}
       <th>Status</th>
     </tr></thead><tbody>`;
 
   for (const s of sorted) {
-    const noExam = s.exam_score == null;
+    const noExam = s.examScore == null;
     const accVal = s.accuracy != null ? parseFloat(s.accuracy) : 0;
     const badgeCount = Array.isArray(s.badges) ? s.badges.length : 0;
-    const bestExam = s.best_exam_score;
+    const bestExam = s.bestExamScore;
     html += `<tr class="${noExam ? 'no-exam' : ''}">
-      <td style="font-weight:600">${esc(s.student_name) || '---'}</td>
+      <td style="font-weight:600">${esc(s.name) || '---'}</td>
       <td><span class="badge ${s.section === 'blue' ? 'badge-blue' : 'badge-red'}">${s.section === 'blue' ? '7th Blue' : '7th Red'}</span></td>
       <td>${s.level ?? 0}</td>
-      <td>${(s.total_xp || s.xp || 0).toLocaleString()}</td>
-      <td>${s.streak ?? 0}🔥</td>
+      <td>${(s.totalXp || s.xp || 0).toLocaleString()}</td>
+      <td>${s.streak ?? 0}ðŸ”¥</td>
       <td>${s.answered ?? 0}</td>
       <td class="${accClass(accVal)}">${accVal.toFixed(1)}%</td>
-      <td>${noExam ? '<span style="color:#bbb">&mdash;</span>' : s.exam_score + '%'}</td>
+      <td>${noExam ? '<span style="color:#bbb">&mdash;</span>' : s.examScore + '%'}</td>
       <td>${bestExam != null ? '<b>' + bestExam + '%</b>' : '<span style="color:#bbb">&mdash;</span>'}</td>
-      <td title="${Array.isArray(s.badges) ? s.badges.join(', ') : ''}">${badgeCount > 0 ? '🏅' + badgeCount : '<span style="color:#bbb">0</span>'}</td>
-      <td>${relativeTime(s.updated_at)}</td>
-      <td><span class="status-dot ${statusClass(s.updated_at)}"></span></td>
+      <td title="${Array.isArray(s.badges) ? esc(s.badges.join(', ')) : ''}">${badgeCount > 0 ? 'ðŸ…' + badgeCount : '<span style="color:#bbb">0</span>'}</td>
+      <td>${relativeTime(s.updatedAt)}</td>
+      <td><span class="status-dot ${statusClass(s.updatedAt)}"></span></td>
     </tr>`;
   }
   html += `</tbody></table></div>`;
@@ -424,7 +432,7 @@ function render() {
   for (const sk of SKILLS) html += `<th>${sk.label}</th>`;
   html += `</tr></thead><tbody>`;
   for (const s of sorted) {
-    html += `<tr><td>${esc(s.student_name) || '---'}</td>`;
+    html += `<tr><td>${esc(s.name) || '---'}</td>`;
     for (const sk of SKILLS) {
       const m = mastery(s.mastery, sk.key);
       html += `<td class="${heatClass(m.pct)}">${m.pct != null ? m.pct + '%' : '-'}</td>`;
@@ -437,12 +445,12 @@ function render() {
   const skillStats = SKILLS.map(sk => {
     let totalSeen = 0, totalCorrect = 0;
     const struggling = [];
-    for (const s of students) {
+    for (const s of accByStudent) {
       const m = mastery(s.mastery, sk.key);
       if (m.seen > 0) {
         totalSeen += m.seen;
         totalCorrect += Math.round(m.pct * m.seen / 100);
-        if (m.pct < 50) struggling.push({ name: s.student_name, pct: m.pct, seen: m.seen });
+        if (m.pct < 50) struggling.push({ name: s.name, pct: m.pct, seen: m.seen });
       }
     }
     const pct = totalSeen > 0 ? Math.round(totalCorrect / totalSeen * 100) : null;
@@ -460,11 +468,11 @@ function render() {
     topWeak.forEach((sk, i) => {
       const barCls = sk.pct < 40 ? 'bar-red' : sk.pct < 70 ? 'bar-yellow' : 'bar-green';
       const strugs = sk.struggling.sort((a,b) => a.pct - b.pct).slice(0, 5);
-      const strugNames = strugs.length ? strugs.map(s => s.name + ' (' + s.pct + '%)').join(', ') : 'None below 50%';
+      const strugNames = strugs.length ? strugs.map(s => esc(s.name) + ' (' + s.pct + '%)').join(', ') : 'None below 50%';
       html += `<div class="reinforce-row">
         <div class="reinforce-rank">${i + 1}</div>
         <div class="reinforce-info">
-          <div class="name">${sk.label} <span style="color:${sk.pct<40?'var(--bad)':sk.pct<70?'var(--gold)':'var(--ok)'};font-size:12px;margin-left:6px">${sk.pct}% class avg</span></div>
+          <div class="name">${esc(sk.label)} <span style="color:${sk.pct<40?'var(--bad)':sk.pct<70?'var(--gold)':'var(--ok)'};font-size:12px;margin-left:6px">${sk.pct}% class avg</span></div>
           <div class="detail">${sk.totalSeen} total attempts &middot; Struggling: ${strugNames}</div>
         </div>
       </div>`;
@@ -473,11 +481,11 @@ function render() {
   }
 
   html += `<div class="weakness-panel">
-    <h3>&#128202; Class Skill Accuracy (Lowest → Highest)</h3>`;
+    <h3>&#128202; Class Skill Accuracy (Lowest â†’ Highest)</h3>`;
   for (const sk of weakestFirst) {
     const barCls = sk.pct < 40 ? 'bar-red' : sk.pct < 70 ? 'bar-yellow' : 'bar-green';
     html += `<div class="weakness-bar-row">
-      <div class="weakness-label">${sk.label}</div>
+      <div class="weakness-label">${esc(sk.label)}</div>
       <div class="weakness-track"><div class="weakness-fill ${barCls}" style="width:${sk.pct}%">${sk.pct}%</div></div>
       <div class="weakness-val" style="color:${sk.pct<40?'var(--bad)':sk.pct<70?'var(--gold)':'var(--ok)'}">${sk.totalSeen} Q</div>
     </div>`;
@@ -485,8 +493,8 @@ function render() {
   html += `</div>`;
 
   // Per-section weakness comparison
-  const blueStudents = students.filter(s => s.section === 'blue');
-  const redStudents = students.filter(s => s.section === 'red');
+  const blueStudents = accByStudent.filter(s => s.section === 'blue');
+  const redStudents = accByStudent.filter(s => s.section === 'red');
   function sectionSkillAcc(arr, key) {
     let seen = 0, correct = 0;
     for (const s of arr) {
@@ -509,7 +517,7 @@ function render() {
         <div style="display:flex;flex-wrap:wrap;gap:4px">`;
       for (const sk of secSkills) {
         const cls = sk.pct < 40 ? 'critical' : sk.pct < 70 ? 'warning' : 'ok';
-        html += `<span class="weakness-tag ${cls}">${sk.label}: ${sk.pct}%</span>`;
+        html += `<span class="weakness-tag ${cls}">${esc(sk.label)}: ${sk.pct}%</span>`;
       }
       html += `</div></div>`;
     });
@@ -532,8 +540,8 @@ function render() {
       html += `<div class="reinforce-row" style="border-color:#f5d5d5">
         <div class="reinforce-rank" style="background:${acc<40?'var(--bad)':'var(--gold)'}">${acc.toFixed(0)}%</div>
         <div class="reinforce-info">
-          <div class="name">${esc(s.student_name)} <span class="badge ${s.section==='blue'?'badge-blue':'badge-red'}" style="font-size:10px">${s.section==='blue'?'Blue':'Red'}</span></div>
-          <div class="detail">${s.answered} answered &middot; Level ${s.level || 0} &middot; Weakest: ${worstSkill ? worstSkill + ' (' + worstPct + '%)' : 'Not enough data'}</div>
+          <div class="name">${esc(s.name)} <span class="badge ${s.section==='blue'?'badge-blue':'badge-red'}" style="font-size:10px">${s.section==='blue'?'Blue':'Red'}</span></div>
+          <div class="detail">${s.answered} answered &middot; Level ${s.level || 0} &middot; Weakest: ${worstSkill ? esc(worstSkill) + ' (' + worstPct + '%)' : 'Not enough data'}</div>
         </div>
       </div>`;
     }
@@ -545,12 +553,12 @@ function render() {
   const blues = allStudents.filter(s => s.section === 'blue');
   const reds = allStudents.filter(s => s.section === 'red');
   function compCard(label, badgeCls, arr) {
-    const a = avg(arr, 'accuracy');
-    const x = avg(arr, 'total_xp') || avg(arr, 'xp');
-    const exArr = arr.filter(s => s.exam_score != null);
-    const e = avg(exArr, 'exam_score');
-    const bestArr = arr.filter(s => s.best_exam_score != null);
-    const be = avg(bestArr, 'best_exam_score');
+    const a = avg(arr.map(s => ({ ...s, accuracy: s.answered > 0 ? Math.round(s.correct / s.answered * 100) : 0 })), 'accuracy');
+    const x = avg(arr, 'totalXp') || avg(arr, 'xp');
+    const exArr = arr.filter(s => s.examScore != null);
+    const e = avg(exArr, 'examScore');
+    const bestArr = arr.filter(s => s.bestExamScore != null);
+    const be = avg(bestArr, 'bestExamScore');
     const st = avg(arr, 'streak');
     const bdg = arr.reduce((sum, s) => sum + (Array.isArray(s.badges) ? s.badges.length : 0), 0);
     return `<div class="compare-card">
@@ -560,8 +568,8 @@ function render() {
       <div class="stat-row"><span>Avg Last Exam</span><span class="stat-val">${e != null ? e.toFixed(1) + '%' : '---'}</span></div>
       <div class="stat-row"><span>Avg Best Exam</span><span class="stat-val">${be != null ? be.toFixed(1) + '%' : '---'}</span></div>
       <div class="stat-row"><span>Exams Completed</span><span class="stat-val">${exArr.length} / ${arr.length}</span></div>
-      <div class="stat-row"><span>Avg Streak</span><span class="stat-val">${st != null ? st.toFixed(1) + '🔥' : '---'}</span></div>
-      <div class="stat-row"><span>Total Badges</span><span class="stat-val">🏅 ${bdg}</span></div>
+      <div class="stat-row"><span>Avg Streak</span><span class="stat-val">${st != null ? st.toFixed(1) + 'ðŸ”¥' : '---'}</span></div>
+      <div class="stat-row"><span>Total Badges</span><span class="stat-val">ðŸ… ${bdg}</span></div>
     </div>`;
   }
   html += `<div class="compare-row">
@@ -586,11 +594,11 @@ function render() {
   // Students needing attention
   html += `<div class="section-title">Students Needing Attention</div>`;
   const now = Date.now();
-  const lowAcc = students.filter(s => s.accuracy != null && parseFloat(s.accuracy) < 50 && (s.answered || 0) > 0);
-  const noExam = students.filter(s => s.exam_score == null);
+  const lowAcc = students.filter(s => s.answered > 0 && (s.correct / s.answered * 100) < 50);
+  const noExam = students.filter(s => s.examScore == null);
   const inactive = students.filter(s => {
-    if (!s.updated_at) return true;
-    return (now - new Date(s.updated_at).getTime()) > 24 * 3600000;
+    if (!s.updatedAt) return true;
+    return (now - new Date(s.updatedAt).getTime()) > 24 * 3600000;
   });
 
   html += `<div class="attention-panel">
@@ -598,32 +606,32 @@ function render() {
     <div class="attention-group">
       <h4>Low Accuracy (&lt; 50%)</h4>
       <div class="attention-list">
-        ${lowAcc.length ? lowAcc.map(s => `<span class="attention-tag red">${esc(s.student_name)} (${parseFloat(s.accuracy).toFixed(0)}%)</span>`).join('') : '<span class="none-msg">None</span>'}
+        ${lowAcc.length ? lowAcc.map(s => `<span class="attention-tag red">${esc(s.name)} (${Math.round(s.correct/s.answered*100)}%)</span>`).join('') : '<span class="none-msg">None</span>'}
       </div>
     </div>
     <div class="attention-group">
       <h4>Exam Not Taken</h4>
       <div class="attention-list">
-        ${noExam.length ? noExam.map(s => `<span class="attention-tag yellow">${esc(s.student_name)}</span>`).join('') : '<span class="none-msg">None</span>'}
+        ${noExam.length ? noExam.map(s => `<span class="attention-tag yellow">${esc(s.name)}</span>`).join('') : '<span class="none-msg">None</span>'}
       </div>
     </div>
     <div class="attention-group">
       <h4>Inactive (&gt; 24 hours)</h4>
       <div class="attention-list">
-        ${inactive.length ? inactive.map(s => `<span class="attention-tag gray">${esc(s.student_name)} (${relativeTime(s.updated_at)})</span>`).join('') : '<span class="none-msg">None</span>'}
+        ${inactive.length ? inactive.map(s => `<span class="attention-tag gray">${esc(s.name)} (${relativeTime(s.updatedAt)})</span>`).join('') : '<span class="none-msg">None</span>'}
       </div>
     </div>
   </div>`;
 
   // Flashcard progress
   const CARD_IDS = ['c1','c2','c3','c4','c5','c6','c7','c8','c9','c10','c11','c12','c13','c14','c15','c16'];
-  const studentsWithCards = students.filter(s => s.card_box && typeof s.card_box === 'object' && Object.keys(s.card_box).length > 0);
+  const studentsWithCards = students.filter(s => s.cardBox && typeof s.cardBox === 'object' && Object.keys(s.cardBox).length > 0);
   if (studentsWithCards.length) {
     html += `<div class="section-title">&#127183; Flashcard Progress (Leitner Boxes)</div>`;
     html += `<div class="table-wrap"><table>
       <thead><tr><th style="text-align:left">Student</th><th>Box 1<br><span style="font-weight:400;font-size:10px">New</span></th><th>Box 2</th><th>Box 3</th><th>Box 4</th><th>Box 5<br><span style="font-weight:400;font-size:10px">Mastered</span></th><th>Total Reviewed</th></tr></thead><tbody>`;
     for (const s of studentsWithCards) {
-      const cb = s.card_box;
+      const cb = s.cardBox;
       const boxes = [0,0,0,0,0];
       let reviewed = 0;
       for (const cid of CARD_IDS) {
@@ -632,7 +640,7 @@ function render() {
         if (box > 1) reviewed++;
       }
       html += `<tr>
-        <td style="font-weight:600">${esc(s.student_name)}</td>
+        <td style="font-weight:600">${esc(s.name)}</td>
         <td class="${boxes[0] > 8 ? 'heat-red' : boxes[0] > 4 ? 'heat-yellow' : 'heat-green'}">${boxes[0]}</td>
         <td class="heat-yellow">${boxes[1]}</td>
         <td class="heat-yellow">${boxes[2]}</td>
@@ -646,19 +654,10 @@ function render() {
 
   // Badges detail
   const BADGE_LABELS = {
-    first: '🎯 First Discovery',
-    streak3: '🔥 3-Day Streak',
-    practice50: '⚡ 50 Answered',
-    practice100: '💫 100 Answered',
-    accuracy80: '🎖️ Accuracy Ace',
-    photo: '🌞 Photosynthesis Pro',
-    resp: '🫁 Respiration Hero',
-    tier2: '🧭 Level 2',
-    tier4: '⚔️ Level 4',
-    tier6: '👑 Level 6',
-    exam: '🏆 Exam Warrior',
-    perfect: '💯 Perfect Exam',
-    explorer: '🌍 All Skills'
+    first: 'ðŸŽ¯ First Discovery', streak3: 'ðŸ”¥ 3-Day Streak', practice50: 'âš¡ 50 Answered',
+    practice100: 'ðŸ’« 100 Answered', accuracy80: 'ðŸŽ–ï¸ Accuracy Ace', photo: 'ðŸŒž Photosynthesis Pro',
+    resp: 'ðŸ« Respiration Hero', tier2: 'ðŸ§­ Level 2', tier4: 'âš”ï¸ Level 4', tier6: 'ðŸ‘‘ Level 6',
+    exam: 'ðŸ† Exam Warrior', perfect: 'ðŸ’¯ Perfect Exam', explorer: 'ðŸŒ All Skills'
   };
   const studentsWithBadges = students.filter(s => Array.isArray(s.badges) && s.badges.length > 0);
   if (studentsWithBadges.length) {
@@ -669,9 +668,9 @@ function render() {
     for (const s of badgeSorted) {
       const blist = s.badges.map(b => BADGE_LABELS[b] || b).join(', ');
       html += `<tr>
-        <td style="font-weight:600">${esc(s.student_name)}</td>
+        <td style="font-weight:600">${esc(s.name)}</td>
         <td><b>${s.badges.length}</b></td>
-        <td style="white-space:normal;font-size:12px">${blist}</td>
+        <td style="white-space:normal;font-size:12px">${esc(blist)}</td>
       </tr>`;
     }
     html += `</tbody></table></div>`;
@@ -702,28 +701,23 @@ async function refreshData() {
   const icon = document.getElementById('refreshIcon');
   icon.classList.add('spinning');
   try {
-    allStudents = await fetchStudents();
     if (!CONFIGURED) {
       document.getElementById('mainContent').innerHTML =
-        `<div class="loading-overlay" style="color:var(--bad)">⚙️ Supabase is not configured yet.<br><br>
-         Open <b>teacher.html</b> and set <code>SUPABASE_URL</code> and <code>SUPABASE_KEY</code>,<br>
-         then run <code>supabase/schema.sql</code> in your project (see README).<br><br>
+        `<div class="loading-overlay" style="color:var(--bad)">âš™ï¸ Firebase is not configured yet.<br><br>
+         Open <b>teacher.html</b> and paste your <code>FIREBASE_CONFIG</code> values (see README).<br><br>
          <span style="font-size:13px;color:#8a8a8a">Students will start appearing here as soon as they practice.</span></div>`;
       return;
     }
+    const snap = await db.collection('scores').get();
+    allStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     render();
     const now = new Date();
     document.getElementById('lastRefresh').textContent =
       `Last refreshed: ${now.toLocaleTimeString('en-US', { hour12: false })}`;
   } catch (e) {
     console.error('Fetch error:', e);
-    const missing = /404/.test(String(e.message || ''));
     document.getElementById('mainContent').innerHTML =
-      `<div class="loading-overlay" style="color:var(--bad)">` +
-      (missing
-        ? `⚙️ Tables not found yet. In your Supabase project, open <b>SQL Editor</b> and run <code>supabase/schema.sql</code> (creates the <code>sciencelab_*</code> tables), then click Refresh.`
-        : `Failed to load data. Check the Supabase connection.<br><small>${esc(e.message)}</small>`) +
-      `</div>`;
+      `<div class="loading-overlay" style="color:var(--bad)">Failed to load data. Check the Firebase connection or Firestore rules.<br><small>${esc(e.message)}</small></div>`;
   }
   setTimeout(() => icon.classList.remove('spinning'), 600);
 }
@@ -732,17 +726,17 @@ function exportCSV() {
   const students = filtered();
   const headers = ['Name','Section','Level','XP','Streak','Answered','Accuracy','Last Exam','Best Exam','Badges','Last Active'];
   const rows = students.map(s => [
-    s.student_name,
+    s.name,
     s.section === 'blue' ? '7th Blue' : '7th Red',
     s.level,
-    s.total_xp || s.xp || 0,
+    s.totalXp || s.xp || 0,
     s.streak ?? 0,
     s.answered,
-    s.accuracy != null ? parseFloat(s.accuracy).toFixed(1) + '%' : '',
-    s.exam_score != null ? s.exam_score + '%' : '',
-    s.best_exam_score != null ? s.best_exam_score + '%' : '',
+    s.answered > 0 ? Math.round(s.correct / s.answered * 100) + '%' : '',
+    s.examScore != null ? s.examScore + '%' : '',
+    s.bestExamScore != null ? s.bestExamScore + '%' : '',
     Array.isArray(s.badges) ? s.badges.join('; ') : '',
-    s.updated_at || ''
+    s.updatedAt || ''
   ]);
   let csv = headers.join(',') + '\n';
   for (const r of rows) {
@@ -757,52 +751,43 @@ function exportCSV() {
 }
 
 // ===== NOTICE SYSTEM =====
-const NOTICE_URL = SUPABASE_URL + '/rest/v1/sciencelab_notices';
-
 async function sendNotice() {
   const msg = document.getElementById('noticeInput').value.trim();
   if (!msg) return;
   const st = document.getElementById('noticeStatus');
-  if (!CONFIGURED) { st.textContent = '✗ Configure Supabase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
-  st.textContent = 'Sending…';
+  if (!CONFIGURED) { st.textContent = 'âœ— Configure Firebase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
+  st.textContent = 'Sendingâ€¦';
   try {
-    await fetch(NOTICE_URL + '?active=eq.true', {
-      method: 'PATCH',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: false })
-    });
-    const res = await fetch(NOTICE_URL, {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ message: msg, active: true })
-    });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    st.textContent = '✓ Sent to all students';
+    // Deactivate previous notices
+    const activeSnap = await db.collection('notices').where('active', '==', true).get();
+    const batch = db.batch();
+    activeSnap.forEach(doc => batch.update(doc.ref, { active: false }));
+    await batch.commit();
+    await db.collection('notices').add({ message: msg, active: true, createdAt: new Date().toISOString() });
+    st.textContent = 'âœ“ Sent to all students';
     setTimeout(() => st.textContent = '', 4000);
   } catch(e) {
-    st.textContent = '✗ Error: ' + e.message;
+    st.textContent = 'âœ— Error: ' + esc(e.message);
   }
 }
 
 async function clearNotice() {
   const st = document.getElementById('noticeStatus');
-  if (!CONFIGURED) { st.textContent = '✗ Configure Supabase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
+  if (!CONFIGURED) { st.textContent = 'âœ— Configure Firebase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
   try {
-    await fetch(NOTICE_URL + '?active=eq.true', {
-      method: 'PATCH',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ active: false })
-    });
+    const activeSnap = await db.collection('notices').where('active', '==', true).get();
+    const batch = db.batch();
+    activeSnap.forEach(doc => batch.update(doc.ref, { active: false }));
+    await batch.commit();
     document.getElementById('noticeInput').value = '';
-    st.textContent = '✓ Notice cleared';
+    st.textContent = 'âœ“ Notice cleared';
     setTimeout(() => st.textContent = '', 3000);
   } catch(e) {
-    st.textContent = '✗ Error: ' + e.message;
+    st.textContent = 'âœ— Error: ' + esc(e.message);
   }
 }
 
 // === READ RECEIPTS ===
-const READS_URL = SUPABASE_URL + '/rest/v1/sciencelab_notice_reads';
 let _readReceiptsVisible = false;
 
 function toggleReadReceipts() {
@@ -820,51 +805,41 @@ async function loadReadReceipts() {
   notReadList.innerHTML = '';
 
   if (!CONFIGURED) {
-    countEl.textContent = 'Not available until Supabase is configured';
+    countEl.textContent = 'Not available until Firebase is configured';
     return;
   }
 
   try {
-    const nRes = await fetch(
-      NOTICE_URL + '?active=eq.true&select=id,message,created_at&limit=1',
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-    );
-    const notices = await nRes.json();
-    if (!notices.length) {
-      countEl.textContent = 'No active notice';
-      return;
-    }
-    const notice = notices[0];
-    const sentAt = new Date(notice.created_at);
+    const activeSnap = await db.collection('notices').where('active', '==', true).limit(1).get();
+    if (activeSnap.empty) { countEl.textContent = 'No active notice'; return; }
+    const notice = activeSnap.docs[0];
+    const sentAt = new Date(notice.data().createdAt || Date.now());
 
-    const rRes = await fetch(
-      READS_URL + '?notice_id=eq.' + notice.id + '&select=student_name,section,read_at',
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-    );
-    const reads = await rRes.json();
-    const readNames = new Set(reads.map(r => r.student_name));
+    const readsSnap = await db.collection('notice_reads').where('noticeId', '==', notice.id).get();
+    const reads = readsSnap.docs.map(d => d.data());
+    const readUids = new Set(reads.map(r => r.uid));
 
-    const notRead = allStudents.filter(s => !readNames.has(s.student_name));
+    const notRead = allStudents.filter(s => s.id && !readUids.has(s.id));
 
     countEl.textContent = `${reads.length} / ${allStudents.length} students read it`;
 
     if (reads.length) {
       readList.innerHTML = '<strong style="color:#4ade80">Read:</strong><br>' +
         reads.map(r => {
-          const readAt = new Date(r.read_at);
+          const readAt = new Date(r.readAt);
           const delaySec = Math.round((readAt - sentAt) / 1000);
           let delayStr;
           if (delaySec < 60) delayStr = delaySec + 's';
           else if (delaySec < 3600) delayStr = Math.floor(delaySec/60) + 'm ' + (delaySec%60) + 's';
           else delayStr = Math.floor(delaySec/3600) + 'h ' + Math.floor((delaySec%3600)/60) + 'm';
-          return `<span style="display:inline-block;background:#064e3b;color:#4ade80;padding:2px 8px;border-radius:10px;margin:2px;font-size:0.85em">${esc(r.student_name)} <small>(${delayStr})</small></span>`;
+          return `<span style="display:inline-block;background:#064e3b;color:#4ade80;padding:2px 8px;border-radius:10px;margin:2px;font-size:0.85em">${esc(r.name)} <small>(${delayStr})</small></span>`;
         }).join('');
     }
 
     if (notRead.length) {
       notReadList.innerHTML = '<strong style="color:#f87171;margin-top:8px;display:block">Not read:</strong><br>' +
         notRead.map(s =>
-          `<span style="display:inline-block;background:#7f1d1d;color:#f87171;padding:2px 8px;border-radius:10px;margin:2px;font-size:0.85em">${esc(s.student_name)}</span>`
+          `<span style="display:inline-block;background:#7f1d1d;color:#f87171;padding:2px 8px;border-radius:10px;margin:2px;font-size:0.85em">${esc(s.name)}</span>`
         ).join('');
     }
   } catch(e) {
@@ -878,24 +853,16 @@ setInterval(function() {
 }, 15000);
 
 // === INTERVENTION LOGS ===
-const INTERVENTION_TABLE = 'sciencelab_interventions';
 async function loadInterventions() {
   const tbody = document.getElementById('interventionBody');
   if (!tbody) return;
   if (!CONFIGURED) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#8a8a8a;padding:20px">AI help logs appear once Supabase is configured.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#8a8a8a;padding:20px">AI help logs appear once Firebase is configured.</td></tr>`;
     return;
   }
   try {
-    const res = await fetch(
-      `${SUPABASE_URL}/rest/v1/${INTERVENTION_TABLE}?select=*&order=created_at.desc&limit=50`,
-      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-    );
-    if (!res.ok) {
-      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--bad);padding:20px">Could not load interventions (HTTP ${res.status})</td></tr>`;
-      return;
-    }
-    const data = await res.json();
+    const snap = await db.collection('interventions').orderBy('createdAt', 'desc').limit(50).get();
+    const data = snap.docs.map(d => d.data());
     if (!data.length) {
       tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#8a8a8a;padding:20px">No intervention logs yet</td></tr>`;
       return;
@@ -909,12 +876,12 @@ async function loadInterventions() {
       const skillLabel = esc(SKILLS.find(s => s.key === d.skill)?.label || d.skill || '---');
       const secBadge = d.section === 'blue' ? '<span class="badge badge-blue">Blue</span>' : d.section === 'red' ? '<span class="badge badge-red">Red</span>' : esc(d.section || '---');
       return `<tr>
-        <td style="font-weight:600">${esc(d.student_name) || '---'}</td>
+        <td style="font-weight:600">${esc(d.name) || '---'}</td>
         <td>${secBadge}</td>
         <td>${skillLabel}</td>
         <td style="white-space:normal;max-width:220px;font-size:12px">${esc(d.confusion) || '---'}</td>
         <td style="white-space:normal;max-width:300px;font-size:12px">${esc(d.response) || '---'}</td>
-        <td>${relativeTime(d.created_at)}</td>
+        <td>${relativeTime(d.createdAt)}</td>
       </tr>`;
     }).join('');
   } catch(e) {
@@ -922,35 +889,27 @@ async function loadInterventions() {
   }
 }
 
-// Initial load
-refreshData();
+// ===== REAL-TIME LISTENERS (Firebase) =====
+let unsubScores = null, unsubInterventions = null;
+function startListeners() {
+  if (!CONFIGURED || !db) return;
+  if (unsubScores) unsubScores();
+  unsubScores = db.collection('scores').onSnapshot(() => {
+    refreshData();
+  }, (err) => { console.warn('Scores listener error', err); });
 
-// Supabase Realtime (only when configured)
-if (CONFIGURED && typeof supabase !== 'undefined') {
-  const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  const channel = sbClient.channel('scilab-realtime')
-    .on('postgres_changes',
-      { event: '*', schema: 'public', table: TABLE },
-      (payload) => {
-        console.log('Realtime update:', payload.eventType, payload.new?.student_name || '');
-        refreshData();
-      }
-    )
-    .subscribe((status) => {
-      const el = document.getElementById('realtimeStatus');
-      if (status === 'SUBSCRIBED') {
-        el.innerHTML = '&#x25cf; Live';
-        el.style.color = 'var(--ok)';
-      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        el.innerHTML = '&#x25cf; Disconnected';
-        el.style.color = 'var(--bad)';
-        if (!autoRefreshTimer) autoRefreshTimer = setInterval(refreshData, 15000);
-      }
-    });
+  if (unsubInterventions) unsubInterventions();
+  unsubInterventions = db.collection('interventions').onSnapshot(() => {
+    if (document.getElementById('interventionBody')) loadInterventions();
+  }, (err) => { console.warn('Interventions listener error', err); });
 }
 
-// Fallback polling
-autoRefreshTimer = setInterval(refreshData, 60000);
-</script>
-</body>
+// Initial load
+initFirebase();
+if (!CONFIGURED) {
+  refreshData();
+} else {
+  refreshData().then(startListeners);
+}
+setInterval(refreshData, 60000);</body>
 </html>
