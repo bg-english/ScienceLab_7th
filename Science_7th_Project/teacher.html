@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SciLab - Teacher Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700&family=Lexend:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+:root {
+  --cream: #FBF6EA;
+  --paper: #FFFDF7;
+  --ink: #0F3D2E;
+  --green: #1F8A4C;
+  --green-dk: #126B39;
+  --green-lt: #E2F3E8;
+  --blue: #1E50A0;
+  --blue-lt: #E4ECF8;
+  --red: #C8202E;
+  --gold: #E9A72C;
+  --ok: #1FAA66;
+  --bad: #E64545;
+  --line: #E7DCC6;
+  --soft: #FCE6C4;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Lexend', sans-serif;
+  background: var(--cream);
+  color: var(--ink);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
+h1, h2, h3, h4 { font-family: 'Bricolage Grotesque', sans-serif; }
+
+/* Top bar */
+.topbar {
+  background: var(--paper);
+  border-bottom: 2px solid var(--line);
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(15,61,46,0.06);
+}
+.topbar h1 { font-size: 1.35rem; color: var(--ink); margin-right: auto; white-space: nowrap; }
+.topbar h1 span { color: var(--green); }
+.filter-btns { display: flex; gap: 6px; }
+.filter-btn {
+  font-family: 'Lexend', sans-serif;
+  font-size: 13px; font-weight: 500;
+  padding: 6px 16px; border: 2px solid var(--line); border-radius: 20px;
+  background: var(--paper); color: var(--ink); cursor: pointer; transition: all .2s;
+}
+.filter-btn:hover { border-color: var(--green); }
+.filter-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.filter-btn.blue-active { background: var(--blue); color: #fff; border-color: var(--blue); }
+.filter-btn.red-active { background: var(--red); color: #fff; border-color: var(--red); }
+.icon-btn {
+  font-family: 'Lexend', sans-serif; font-size: 13px; font-weight: 500;
+  padding: 6px 14px; border: 2px solid var(--line); border-radius: 20px;
+  background: var(--paper); color: var(--ink); cursor: pointer;
+  display: flex; align-items: center; gap: 5px; transition: all .2s;
+}
+.icon-btn:hover { border-color: var(--green); background: var(--green-lt); }
+.refresh-spin { display: inline-block; transition: transform .4s; }
+.refresh-spin.spinning { animation: spin .6s linear; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.last-refresh { font-size: 11px; color: #8a8a8a; white-space: nowrap; }
+
+/* Main container */
+.main { max-width: 1340px; margin: 0 auto; padding: 20px 24px 40px; }
+
+/* Summary cards */
+.summary-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.summary-card { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; padding: 18px 20px; text-align: center; }
+.summary-card .label { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .5px; color: #6b7a9e; margin-bottom: 4px; }
+.summary-card .value { font-family: 'Bricolage Grotesque', sans-serif; font-size: 2rem; font-weight: 700; color: var(--ink); }
+.summary-card .value.blue { color: var(--blue); }
+.summary-card .value.green { color: var(--ok); }
+.summary-card .value.gold { color: var(--gold); }
+
+/* Section panels */
+.section-title { font-size: 1.1rem; font-weight: 700; margin: 28px 0 12px; display: flex; align-items: center; gap: 8px; }
+.section-title::after { content: ''; flex: 1; height: 2px; background: var(--line); }
+
+/* Table wrapper */
+.table-wrap { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; overflow-x: auto; margin-bottom: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th {
+  position: sticky; top: 0; background: var(--green-lt);
+  padding: 10px 12px; text-align: left; font-weight: 600; font-size: 12px;
+  text-transform: uppercase; letter-spacing: .3px; color: var(--ink);
+  border-bottom: 2px solid var(--line); cursor: pointer; white-space: nowrap; user-select: none;
+}
+thead th:hover { background: #d0ead8; }
+thead th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: .4; }
+thead th.sorted .sort-arrow { opacity: 1; color: var(--green); }
+tbody tr { border-bottom: 1px solid var(--line); transition: background .15s; }
+tbody tr:last-child { border-bottom: none; }
+tbody tr:hover { background: #f5f0e1; }
+tbody tr.no-exam { background: #fef8e8; }
+td { padding: 9px 12px; white-space: nowrap; }
+.badge { display: inline-block; font-size: 11px; font-weight: 600; padding: 2px 10px; border-radius: 10px; text-transform: uppercase; }
+.badge-blue { background: var(--blue-lt); color: var(--blue); }
+.badge-red { background: #fbe4e6; color: var(--red); }
+.status-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+.status-green { background: var(--ok); }
+.status-yellow { background: var(--gold); }
+.status-gray { background: #c5c5c5; }
+.accuracy-good { color: var(--ok); font-weight: 600; }
+.accuracy-mid { color: var(--gold); font-weight: 600; }
+.accuracy-bad { color: var(--bad); font-weight: 600; }
+
+/* Heatmap */
+.heatmap-wrap { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; overflow-x: auto; margin-bottom: 10px; }
+.heatmap-wrap table { font-size: 12px; }
+.heatmap-wrap thead th { font-size: 11px; text-align: center; padding: 8px 6px; }
+.heatmap-wrap td { text-align: center; padding: 6px; font-weight: 500; font-size: 12px; min-width: 70px; }
+.heatmap-wrap td:first-child { text-align: left; font-weight: 600; min-width: 140px; }
+.heat-red { background: #fdd; color: var(--bad); }
+.heat-yellow { background: #fef3d0; color: #9a7000; }
+.heat-green { background: #d6f5e3; color: #157a48; }
+.heat-gray { background: #f0ede6; color: #aaa; }
+
+/* Comparison cards */
+.compare-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 10px; }
+.compare-card { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; padding: 20px; }
+.compare-card h3 { font-size: 1rem; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.compare-card .stat-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.compare-card .stat-row:last-child { border-bottom: none; }
+.compare-card .stat-val { font-weight: 600; }
+
+/* Attention panel */
+.attention-panel { background: #fef8e8; border: 2px solid var(--gold); border-radius: 14px; padding: 20px; }
+.attention-panel h3 { color: var(--gold); font-size: 1rem; margin-bottom: 12px; }
+.attention-group { margin-bottom: 14px; }
+.attention-group:last-child { margin-bottom: 0; }
+.attention-group h4 { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .3px; margin-bottom: 6px; color: #8a7540; }
+.attention-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.attention-tag { font-size: 12px; padding: 4px 12px; border-radius: 8px; background: var(--paper); border: 1px solid var(--line); }
+.attention-tag.red { border-color: var(--bad); color: var(--bad); }
+.attention-tag.yellow { border-color: var(--gold); color: #9a7000; }
+.attention-tag.gray { border-color: #bbb; color: #888; }
+.none-msg { font-size: 12px; color: #aaa; font-style: italic; }
+
+/* Intervention logs */
+#interventionWrap td { vertical-align: top; }
+#interventionWrap td[style*="max-width"] { word-wrap: break-word; overflow-wrap: break-word; }
+
+/* Weakness analysis */
+.weakness-panel { background: var(--paper); border: 2px solid var(--line); border-radius: 14px; padding: 20px; margin-bottom: 10px; }
+.weakness-panel h3 { font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.weakness-bar-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+.weakness-bar-row:last-child { border-bottom: none; }
+.weakness-label { width: 160px; font-weight: 600; flex-shrink: 0; }
+.weakness-track { flex: 1; height: 22px; background: #f0ede6; border-radius: 11px; overflow: hidden; position: relative; }
+.weakness-fill { height: 100%; border-radius: 11px; transition: width .4s; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; font-size: 11px; font-weight: 700; color: #fff; min-width: 38px; }
+.weakness-fill.bar-red { background: linear-gradient(90deg, var(--bad), #f07070); }
+.weakness-fill.bar-yellow { background: linear-gradient(90deg, #d4960a, var(--gold)); }
+.weakness-fill.bar-green { background: linear-gradient(90deg, #13945a, var(--ok)); }
+.weakness-fill.bar-gray { background: #ccc; }
+.weakness-val { width: 54px; text-align: right; font-weight: 600; flex-shrink: 0; font-size: 13px; }
+.weakness-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 10px; margin: 3px; }
+.weakness-tag.critical { background: #fdd; color: var(--bad); border: 1px solid var(--bad); }
+.weakness-tag.warning { background: #fef3d0; color: #9a7000; border: 1px solid var(--gold); }
+.weakness-tag.ok { background: #d6f5e3; color: #157a48; border: 1px solid var(--ok); }
+.reinforce-card { background: #fef0f0; border: 2px solid var(--bad); border-radius: 14px; padding: 20px; margin-bottom: 10px; }
+.reinforce-card h3 { font-size: 1rem; color: var(--bad); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.reinforce-row { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #f5d5d5; font-size: 13px; }
+.reinforce-row:last-child { border-bottom: none; }
+.reinforce-rank { width: 28px; height: 28px; border-radius: 50%; background: var(--bad); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.reinforce-info { flex: 1; }
+.reinforce-info .name { font-weight: 700; }
+.reinforce-info .detail { font-size: 12px; color: #8a8a8a; }
+
+/* Loading */
+.loading-overlay { text-align: center; padding: 60px 20px; color: #8a8a8a; font-size: 15px; }
+.loading-overlay .spinner { width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; margin: 0 auto 14px; }
+
+/* Responsive */
+@media (max-width: 900px) {
+  .topbar { padding: 12px 14px; }
+  .topbar h1 { font-size: 1.1rem; }
+  .main { padding: 14px 12px 30px; }
+  .compare-row { grid-template-columns: 1fr; }
+  .summary-row { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 600px) {
+  .summary-row { grid-template-columns: 1fr; }
+  .filter-btns { flex-wrap: wrap; }
+}
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <h1><span>SciLab</span> &middot; Teacher Dashboard</h1>
+  <div class="filter-btns">
+    <button class="filter-btn active" data-section="all" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" data-section="blue" onclick="setFilter('blue',this)">7th Blue</button>
+    <button class="filter-btn" data-section="red" onclick="setFilter('red',this)">7th Red</button>
+  </div>
+  <button class="icon-btn" onclick="refreshData()" id="refreshBtn">
+    <span class="refresh-spin" id="refreshIcon">&#x21bb;</span> Refresh
+  </button>
+  <button class="icon-btn" onclick="exportCSV()">&#x2913; Export CSV</button>
+  <span class="last-refresh" id="lastRefresh">Last refreshed: --:--:--</span>
+  <span class="last-refresh" id="realtimeStatus" style="color:var(--ok);margin-left:8px">&#x25cf; Live</span>
+</div>
+
+<!-- Notice bar -->
+<div id="noticeBar" style="background:#1E50A0;color:#fff;padding:10px 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+  <span style="font-weight:700;font-size:13px;white-space:nowrap">📢 Message to students:</span>
+  <input id="noticeInput" type="text" placeholder="Write a message and press Send — students will see it instantly"
+    style="flex:1;min-width:260px;padding:7px 14px;border-radius:20px;border:none;font-family:'Lexend',sans-serif;font-size:13px;color:#0F3D2E;outline:none"
+    onkeydown="if(event.key==='Enter')sendNotice()">
+  <button onclick="sendNotice()" style="font-family:'Lexend',sans-serif;font-size:13px;font-weight:600;padding:7px 20px;border-radius:20px;border:none;background:#E9A72C;color:#0F3D2E;cursor:pointer">Send ▶</button>
+  <button onclick="clearNotice()" style="font-family:'Lexend',sans-serif;font-size:13px;font-weight:600;padding:7px 16px;border-radius:20px;border:none;background:rgba(255,255,255,.2);color:#fff;cursor:pointer">Clear ✕</button>
+  <span id="noticeStatus" style="font-size:12px;opacity:.8"></span>
+  <button onclick="toggleReadReceipts()" style="font-family:'Lexend',sans-serif;font-size:13px;font-weight:600;padding:7px 16px;border-radius:20px;border:none;background:rgba(255,255,255,.2);color:#fff;cursor:pointer" id="readReceiptToggle">👁 Read receipts</button>
+</div>
+
+<!-- Read receipts panel -->
+<div id="readReceiptsPanel" style="display:none;background:#f0f4ff;border-bottom:2px solid var(--line);padding:14px 24px;font-size:13px">
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;flex-wrap:wrap">
+    <h4 style="margin:0;font-size:14px;color:var(--ink)">📨 Message delivery status</h4>
+    <span id="readCount" style="font-size:12px;color:var(--blue);font-weight:600"></span>
+    <button onclick="loadReadReceipts()" style="font-family:'Lexend',sans-serif;font-size:11px;padding:4px 12px;border-radius:12px;border:1px solid var(--line);background:var(--paper);cursor:pointer">↻ Refresh</button>
+  </div>
+  <div id="readReceiptsList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+  <div id="notReadList" style="margin-top:10px"></div>
+</div>
+
+<!-- Main content -->
+<div class="main" id="mainContent">
+  <div class="loading-overlay" id="loadingState">
+    <div class="spinner"></div>
+    Loading student data...
+  </div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://YOUR-PROJECT.supabase.co';
+const SUPABASE_KEY = 'YOUR-ANON-KEY';
+const TABLE = 'sciencelab_scores';
+
+let allStudents = [];
+let currentFilter = 'all';
+let sortCol = 'student_name';
+let sortAsc = true;
+let autoRefreshTimer = null;
+
+const SKILLS = [
+  { key: 'photo-process', label: 'Photosynthesis Process' },
+  { key: 'photo-inputs', label: 'What Plants Eat' },
+  { key: 'photo-outputs', label: 'Plant Food' },
+  { key: 'chlorophyll', label: 'Chlorophyll' },
+  { key: 'stomata', label: 'Stomata' },
+  { key: 'plant-resp', label: 'Plant Respiration' },
+  { key: 'root-resp', label: 'Root Respiration' },
+  { key: 'human-organs', label: 'Resp. Organs' },
+  { key: 'breathing', label: 'Breathing Mech.' },
+  { key: 'gas-exchange', label: 'Gas Exchange' },
+  { key: 'resp-care', label: 'Resp. Care' },
+  { key: 'resp-vocab', label: 'Resp. Vocabulary' }
+];
+
+async function fetchStudents() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/${TABLE}?section=neq.teacher&select=*`,
+    { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+function filtered() {
+  if (currentFilter === 'all') return allStudents;
+  return allStudents.filter(s => s.section === currentFilter);
+}
+
+function relativeTime(dateStr) {
+  if (!dateStr) return '---';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+function statusClass(dateStr) {
+  if (!dateStr) return 'status-gray';
+  const diff = Date.now() - new Date(dateStr).getTime();
+  if (diff < 30 * 60000) return 'status-green';
+  if (diff < 2 * 3600000) return 'status-yellow';
+  return 'status-gray';
+}
+
+function accClass(v) {
+  if (v >= 70) return 'accuracy-good';
+  if (v >= 50) return 'accuracy-mid';
+  return 'accuracy-bad';
+}
+
+function mastery(m, key) {
+  if (!m || !m[key] || !m[key].seen) return { pct: null, seen: 0 };
+  return { pct: Math.round((m[key].correct / m[key].seen) * 100), seen: m[key].seen };
+}
+
+function heatClass(pct) {
+  if (pct === null) return 'heat-gray';
+  if (pct < 40) return 'heat-red';
+  if (pct < 70) return 'heat-yellow';
+  return 'heat-green';
+}
+
+function avg(arr, key) {
+  const vals = arr.map(s => s[key]).filter(v => v != null);
+  if (!vals.length) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+function render() {
+  const students = filtered();
+  const totalStudents = students.length;
+  const avgAcc = avg(students, 'accuracy');
+  const examStudents = students.filter(s => s.exam_score != null);
+  const avgExam = avg(examStudents, 'exam_score');
+
+  let html = '';
+
+  // Summary cards
+  const avgStreak = avg(students, 'streak');
+  const totalBadges = students.reduce((sum, s) => sum + (Array.isArray(s.badges) ? s.badges.length : 0), 0);
+  const avgBestExam = avg(students.filter(s => s.best_exam_score != null), 'best_exam_score');
+  html += `<div class="summary-row">
+    <div class="summary-card"><div class="label">Total Students</div><div class="value blue">${totalStudents}</div></div>
+    <div class="summary-card"><div class="label">Avg Accuracy</div><div class="value green">${avgAcc != null ? avgAcc.toFixed(1) + '%' : '---'}</div></div>
+    <div class="summary-card"><div class="label">Avg Exam Score</div><div class="value gold">${avgExam != null ? avgExam.toFixed(1) + '%' : '---'}</div></div>
+    <div class="summary-card"><div class="label">Avg Best Exam</div><div class="value gold">${avgBestExam != null ? avgBestExam.toFixed(1) + '%' : '---'}</div></div>
+    <div class="summary-card"><div class="label">Exams Completed</div><div class="value">${examStudents.length}<span style="font-size:.9rem;color:#8a8a8a">/${totalStudents}</span></div></div>
+    <div class="summary-card"><div class="label">Avg Streak</div><div class="value blue">${avgStreak != null ? avgStreak.toFixed(1) : '---'}</div></div>
+    <div class="summary-card"><div class="label">Total Badges</div><div class="value green">${totalBadges}</div></div>
+  </div>`;
+
+  // Class overview table
+  html += `<div class="section-title">Class Overview</div>`;
+  const sorted = [...students].sort((a, b) => {
+    let va = a[sortCol], vb = b[sortCol];
+    if (sortCol === 'student_name') { va = (va || '').toLowerCase(); vb = (vb || '').toLowerCase(); }
+    if (sortCol === 'updated_at') { va = va ? new Date(va).getTime() : 0; vb = vb ? new Date(vb).getTime() : 0; }
+    if (va == null) va = -Infinity;
+    if (vb == null) vb = -Infinity;
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  function thSort(col, label) {
+    const arrow = sortCol === col ? (sortAsc ? '&#x25B2;' : '&#x25BC;') : '&#x25B2;';
+    const cls = sortCol === col ? 'sorted' : '';
+    return `<th class="${cls}" onclick="toggleSort('${col}')">${label} <span class="sort-arrow">${arrow}</span></th>`;
+  }
+
+  html += `<div class="table-wrap"><table>
+    <thead><tr>
+      ${thSort('student_name','Name')}
+      ${thSort('section','Section')}
+      ${thSort('level','Level')}
+      ${thSort('total_xp','XP')}
+      ${thSort('streak','Streak')}
+      ${thSort('answered','Answered')}
+      ${thSort('accuracy','Accuracy')}
+      ${thSort('exam_score','Last Exam')}
+      ${thSort('best_exam_score','Best Exam')}
+      <th>Badges</th>
+      ${thSort('updated_at','Last Active')}
+      <th>Status</th>
+    </tr></thead><tbody>`;
+
+  for (const s of sorted) {
+    const noExam = s.exam_score == null;
+    const accVal = s.accuracy != null ? parseFloat(s.accuracy) : 0;
+    const badgeCount = Array.isArray(s.badges) ? s.badges.length : 0;
+    const bestExam = s.best_exam_score;
+    html += `<tr class="${noExam ? 'no-exam' : ''}">
+      <td style="font-weight:600">${s.student_name || '---'}</td>
+      <td><span class="badge ${s.section === 'blue' ? 'badge-blue' : 'badge-red'}">${s.section === 'blue' ? '7th Blue' : '7th Red'}</span></td>
+      <td>${s.level ?? 0}</td>
+      <td>${(s.total_xp || s.xp || 0).toLocaleString()}</td>
+      <td>${s.streak ?? 0}🔥</td>
+      <td>${s.answered ?? 0}</td>
+      <td class="${accClass(accVal)}">${accVal.toFixed(1)}%</td>
+      <td>${noExam ? '<span style="color:#bbb">&mdash;</span>' : s.exam_score + '%'}</td>
+      <td>${bestExam != null ? '<b>' + bestExam + '%</b>' : '<span style="color:#bbb">&mdash;</span>'}</td>
+      <td title="${Array.isArray(s.badges) ? s.badges.join(', ') : ''}">${badgeCount > 0 ? '🏅' + badgeCount : '<span style="color:#bbb">0</span>'}</td>
+      <td>${relativeTime(s.updated_at)}</td>
+      <td><span class="status-dot ${statusClass(s.updated_at)}"></span></td>
+    </tr>`;
+  }
+  html += `</tbody></table></div>`;
+
+  // Skill mastery heatmap
+  html += `<div class="section-title">Skill Mastery Heatmap</div>`;
+  html += `<div class="heatmap-wrap"><table>
+    <thead><tr><th style="text-align:left">Student</th>`;
+  for (const sk of SKILLS) html += `<th>${sk.label}</th>`;
+  html += `</tr></thead><tbody>`;
+  for (const s of sorted) {
+    html += `<tr><td>${s.student_name || '---'}</td>`;
+    for (const sk of SKILLS) {
+      const m = mastery(s.mastery, sk.key);
+      html += `<td class="${heatClass(m.pct)}">${m.pct != null ? m.pct + '%' : '-'}</td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table></div>`;
+
+  // Weakness analysis
+  const skillStats = SKILLS.map(sk => {
+    let totalSeen = 0, totalCorrect = 0;
+    const struggling = [];
+    for (const s of students) {
+      const m = mastery(s.mastery, sk.key);
+      if (m.seen > 0) {
+        totalSeen += m.seen;
+        totalCorrect += Math.round(m.pct * m.seen / 100);
+        if (m.pct < 50) struggling.push({ name: s.student_name, pct: m.pct, seen: m.seen });
+      }
+    }
+    const pct = totalSeen > 0 ? Math.round(totalCorrect / totalSeen * 100) : null;
+    return { ...sk, pct, totalSeen, totalCorrect, struggling };
+  }).filter(s => s.totalSeen > 0);
+
+  const weakestFirst = [...skillStats].sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999));
+
+  html += `<div class="section-title">&#128270; Skill Weakness Analysis</div>`;
+
+  const topWeak = weakestFirst.filter(s => s.pct !== null).slice(0, 5);
+  if (topWeak.length) {
+    html += `<div class="reinforce-card">
+      <h3>&#127919; Priority Skills to Reinforce for Exam Prep</h3>`;
+    topWeak.forEach((sk, i) => {
+      const barCls = sk.pct < 40 ? 'bar-red' : sk.pct < 70 ? 'bar-yellow' : 'bar-green';
+      const strugs = sk.struggling.sort((a,b) => a.pct - b.pct).slice(0, 5);
+      const strugNames = strugs.length ? strugs.map(s => s.name + ' (' + s.pct + '%)').join(', ') : 'None below 50%';
+      html += `<div class="reinforce-row">
+        <div class="reinforce-rank">${i + 1}</div>
+        <div class="reinforce-info">
+          <div class="name">${sk.label} <span style="color:${sk.pct<40?'var(--bad)':sk.pct<70?'var(--gold)':'var(--ok)'};font-size:12px;margin-left:6px">${sk.pct}% class avg</span></div>
+          <div class="detail">${sk.totalSeen} total attempts &middot; Struggling: ${strugNames}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  }
+
+  html += `<div class="weakness-panel">
+    <h3>&#128202; Class Skill Accuracy (Lowest → Highest)</h3>`;
+  for (const sk of weakestFirst) {
+    const barCls = sk.pct < 40 ? 'bar-red' : sk.pct < 70 ? 'bar-yellow' : 'bar-green';
+    html += `<div class="weakness-bar-row">
+      <div class="weakness-label">${sk.label}</div>
+      <div class="weakness-track"><div class="weakness-fill ${barCls}" style="width:${sk.pct}%">${sk.pct}%</div></div>
+      <div class="weakness-val" style="color:${sk.pct<40?'var(--bad)':sk.pct<70?'var(--gold)':'var(--ok)'}">${sk.totalSeen} Q</div>
+    </div>`;
+  }
+  html += `</div>`;
+
+  // Per-section weakness comparison
+  const blueStudents = students.filter(s => s.section === 'blue');
+  const redStudents = students.filter(s => s.section === 'red');
+  function sectionSkillAcc(arr, key) {
+    let seen = 0, correct = 0;
+    for (const s of arr) {
+      const m = mastery(s.mastery, key);
+      if (m.seen > 0) { seen += m.seen; correct += Math.round(m.pct * m.seen / 100); }
+    }
+    return seen > 0 ? Math.round(correct / seen * 100) : null;
+  }
+  if (blueStudents.length && redStudents.length) {
+    html += `<div class="weakness-panel">
+      <h3>&#9878; Section Weakness Comparison</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">`;
+    ['blue','red'].forEach(sec => {
+      const arr = sec === 'blue' ? blueStudents : redStudents;
+      const label = sec === 'blue' ? '7th Blue' : '7th Red';
+      const badgeCls = sec === 'blue' ? 'badge-blue' : 'badge-red';
+      const secSkills = SKILLS.map(sk => ({ ...sk, pct: sectionSkillAcc(arr, sk.key) })).filter(s => s.pct !== null).sort((a,b) => a.pct - b.pct);
+      html += `<div>
+        <div style="margin-bottom:10px"><span class="badge ${badgeCls}">${label}</span></div>
+        <div style="display:flex;flex-wrap:wrap;gap:4px">`;
+      for (const sk of secSkills) {
+        const cls = sk.pct < 40 ? 'critical' : sk.pct < 70 ? 'warning' : 'ok';
+        html += `<span class="weakness-tag ${cls}">${sk.label}: ${sk.pct}%</span>`;
+      }
+      html += `</div></div>`;
+    });
+    html += `</div></div>`;
+  }
+
+  // Students with lowest accuracy
+  const studentsWithAnswers = students.filter(s => (s.answered || 0) >= 3);
+  const lowestStudents = [...studentsWithAnswers].sort((a,b) => parseFloat(a.accuracy || 0) - parseFloat(b.accuracy || 0)).slice(0, 5);
+  if (lowestStudents.length) {
+    html += `<div class="attention-panel" style="border-color:var(--bad);background:#fef0f0;margin-bottom:10px">
+      <h3 style="color:var(--bad)">&#9888; Students with Lowest Overall Accuracy</h3>`;
+    for (const s of lowestStudents) {
+      const acc = parseFloat(s.accuracy || 0);
+      let worstSkill = null, worstPct = 999;
+      for (const sk of SKILLS) {
+        const m = mastery(s.mastery, sk.key);
+        if (m.seen >= 2 && m.pct < worstPct) { worstPct = m.pct; worstSkill = sk.label; }
+      }
+      html += `<div class="reinforce-row" style="border-color:#f5d5d5">
+        <div class="reinforce-rank" style="background:${acc<40?'var(--bad)':'var(--gold)'}">${acc.toFixed(0)}%</div>
+        <div class="reinforce-info">
+          <div class="name">${s.student_name} <span class="badge ${s.section==='blue'?'badge-blue':'badge-red'}" style="font-size:10px">${s.section==='blue'?'Blue':'Red'}</span></div>
+          <div class="detail">${s.answered} answered &middot; Level ${s.level || 0} &middot; Weakest: ${worstSkill ? worstSkill + ' (' + worstPct + '%)' : 'Not enough data'}</div>
+        </div>
+      </div>`;
+    }
+    html += `</div>`;
+  }
+
+  // Section comparison
+  html += `<div class="section-title">Section Comparison</div>`;
+  const blues = allStudents.filter(s => s.section === 'blue');
+  const reds = allStudents.filter(s => s.section === 'red');
+  function compCard(label, badgeCls, arr) {
+    const a = avg(arr, 'accuracy');
+    const x = avg(arr, 'total_xp') || avg(arr, 'xp');
+    const exArr = arr.filter(s => s.exam_score != null);
+    const e = avg(exArr, 'exam_score');
+    const bestArr = arr.filter(s => s.best_exam_score != null);
+    const be = avg(bestArr, 'best_exam_score');
+    const st = avg(arr, 'streak');
+    const bdg = arr.reduce((sum, s) => sum + (Array.isArray(s.badges) ? s.badges.length : 0), 0);
+    return `<div class="compare-card">
+      <h3><span class="badge ${badgeCls}">${label}</span> <span style="font-size:.85rem;color:#8a8a8a">${arr.length} students</span></h3>
+      <div class="stat-row"><span>Avg XP</span><span class="stat-val">${x != null ? Math.round(x).toLocaleString() : '---'}</span></div>
+      <div class="stat-row"><span>Avg Accuracy</span><span class="stat-val">${a != null ? a.toFixed(1) + '%' : '---'}</span></div>
+      <div class="stat-row"><span>Avg Last Exam</span><span class="stat-val">${e != null ? e.toFixed(1) + '%' : '---'}</span></div>
+      <div class="stat-row"><span>Avg Best Exam</span><span class="stat-val">${be != null ? be.toFixed(1) + '%' : '---'}</span></div>
+      <div class="stat-row"><span>Exams Completed</span><span class="stat-val">${exArr.length} / ${arr.length}</span></div>
+      <div class="stat-row"><span>Avg Streak</span><span class="stat-val">${st != null ? st.toFixed(1) + '🔥' : '---'}</span></div>
+      <div class="stat-row"><span>Total Badges</span><span class="stat-val">🏅 ${bdg}</span></div>
+    </div>`;
+  }
+  html += `<div class="compare-row">
+    ${compCard('7th Blue', 'badge-blue', blues)}
+    ${compCard('7th Red', 'badge-red', reds)}
+  </div>`;
+
+  // Intervention logs
+  html += `<div class="section-title">&#129504; Student Intervention Logs (AI Help Requests)</div>`;
+  html += `<div class="table-wrap" id="interventionWrap"><table>
+    <thead><tr>
+      <th style="text-align:left">Student</th>
+      <th style="text-align:left">Section</th>
+      <th style="text-align:left">Skill</th>
+      <th style="text-align:left">Confusion</th>
+      <th style="text-align:left">AI Response</th>
+      <th style="text-align:left">Time</th>
+    </tr></thead>
+    <tbody id="interventionBody"><tr><td colspan="6" style="text-align:center;color:#8a8a8a;padding:20px">Loading interventions...</td></tr></tbody>
+  </table></div>`;
+
+  // Students needing attention
+  html += `<div class="section-title">Students Needing Attention</div>`;
+  const now = Date.now();
+  const lowAcc = students.filter(s => s.accuracy != null && parseFloat(s.accuracy) < 50 && (s.answered || 0) > 0);
+  const noExam = students.filter(s => s.exam_score == null);
+  const inactive = students.filter(s => {
+    if (!s.updated_at) return true;
+    return (now - new Date(s.updated_at).getTime()) > 24 * 3600000;
+  });
+
+  html += `<div class="attention-panel">
+    <h3>&#9888; Needs Attention</h3>
+    <div class="attention-group">
+      <h4>Low Accuracy (&lt; 50%)</h4>
+      <div class="attention-list">
+        ${lowAcc.length ? lowAcc.map(s => `<span class="attention-tag red">${s.student_name} (${parseFloat(s.accuracy).toFixed(0)}%)</span>`).join('') : '<span class="none-msg">None</span>'}
+      </div>
+    </div>
+    <div class="attention-group">
+      <h4>Exam Not Taken</h4>
+      <div class="attention-list">
+        ${noExam.length ? noExam.map(s => `<span class="attention-tag yellow">${s.student_name}</span>`).join('') : '<span class="none-msg">None</span>'}
+      </div>
+    </div>
+    <div class="attention-group">
+      <h4>Inactive (&gt; 24 hours)</h4>
+      <div class="attention-list">
+        ${inactive.length ? inactive.map(s => `<span class="attention-tag gray">${s.student_name} (${relativeTime(s.updated_at)})</span>`).join('') : '<span class="none-msg">None</span>'}
+      </div>
+    </div>
+  </div>`;
+
+  // Flashcard progress
+  const CARD_IDS = ['c1','c2','c3','c4','c5','c6','c7','c8','c9','c10','c11','c12','c13','c14','c15','c16'];
+  const studentsWithCards = students.filter(s => s.card_box && typeof s.card_box === 'object' && Object.keys(s.card_box).length > 0);
+  if (studentsWithCards.length) {
+    html += `<div class="section-title">&#127183; Flashcard Progress (Leitner Boxes)</div>`;
+    html += `<div class="table-wrap"><table>
+      <thead><tr><th style="text-align:left">Student</th><th>Box 1<br><span style="font-weight:400;font-size:10px">New</span></th><th>Box 2</th><th>Box 3</th><th>Box 4</th><th>Box 5<br><span style="font-weight:400;font-size:10px">Mastered</span></th><th>Total Reviewed</th></tr></thead><tbody>`;
+    for (const s of studentsWithCards) {
+      const cb = s.card_box;
+      const boxes = [0,0,0,0,0];
+      let reviewed = 0;
+      for (const cid of CARD_IDS) {
+        const box = cb[cid] || 1;
+        boxes[box - 1]++;
+        if (box > 1) reviewed++;
+      }
+      html += `<tr>
+        <td style="font-weight:600">${s.student_name}</td>
+        <td class="${boxes[0] > 8 ? 'heat-red' : boxes[0] > 4 ? 'heat-yellow' : 'heat-green'}">${boxes[0]}</td>
+        <td class="heat-yellow">${boxes[1]}</td>
+        <td class="heat-yellow">${boxes[2]}</td>
+        <td class="heat-green">${boxes[3]}</td>
+        <td class="heat-green">${boxes[4]}</td>
+        <td><b>${reviewed}</b> / ${CARD_IDS.length}</td>
+      </tr>`;
+    }
+    html += `</tbody></table></div>`;
+  }
+
+  // Badges detail
+  const BADGE_LABELS = {
+    first: '🎯 First Discovery',
+    streak3: '🔥 3-Day Streak',
+    practice50: '⚡ 50 Answered',
+    practice100: '💫 100 Answered',
+    accuracy80: '🎖️ Accuracy Ace',
+    photo: '🌞 Photosynthesis Pro',
+    resp: '🫁 Respiration Hero',
+    tier2: '🧭 Level 2',
+    tier4: '⚔️ Level 4',
+    tier6: '👑 Level 6',
+    exam: '🏆 Exam Warrior',
+    perfect: '💯 Perfect Exam',
+    explorer: '🌍 All Skills'
+  };
+  const studentsWithBadges = students.filter(s => Array.isArray(s.badges) && s.badges.length > 0);
+  if (studentsWithBadges.length) {
+    html += `<div class="section-title">&#127941; Badges Earned</div>`;
+    html += `<div class="table-wrap"><table>
+      <thead><tr><th style="text-align:left">Student</th><th>Count</th><th style="text-align:left">Badges</th></tr></thead><tbody>`;
+    const badgeSorted = [...studentsWithBadges].sort((a,b) => b.badges.length - a.badges.length);
+    for (const s of badgeSorted) {
+      const blist = s.badges.map(b => BADGE_LABELS[b] || b).join(', ');
+      html += `<tr>
+        <td style="font-weight:600">${s.student_name}</td>
+        <td><b>${s.badges.length}</b></td>
+        <td style="white-space:normal;font-size:12px">${blist}</td>
+      </tr>`;
+    }
+    html += `</tbody></table></div>`;
+  }
+
+  document.getElementById('mainContent').innerHTML = html;
+  if (document.getElementById('interventionBody')) loadInterventions();
+}
+
+function setFilter(section, btn) {
+  currentFilter = section;
+  document.querySelectorAll('.filter-btn').forEach(b => {
+    b.classList.remove('active', 'blue-active', 'red-active');
+  });
+  if (section === 'blue') btn.classList.add('active', 'blue-active');
+  else if (section === 'red') btn.classList.add('active', 'red-active');
+  else btn.classList.add('active');
+  render();
+}
+
+function toggleSort(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  render();
+}
+
+async function refreshData() {
+  const icon = document.getElementById('refreshIcon');
+  icon.classList.add('spinning');
+  try {
+    allStudents = await fetchStudents();
+    render();
+    const now = new Date();
+    document.getElementById('lastRefresh').textContent =
+      `Last refreshed: ${now.toLocaleTimeString('en-US', { hour12: false })}`;
+  } catch (e) {
+    console.error('Fetch error:', e);
+    document.getElementById('mainContent').innerHTML =
+      `<div class="loading-overlay" style="color:var(--bad)">Failed to load data. Make sure Supabase URL & Key are set and the tables exist.<br><small>${e.message}</small></div>`;
+  }
+  setTimeout(() => icon.classList.remove('spinning'), 600);
+}
+
+function exportCSV() {
+  const students = filtered();
+  const headers = ['Name','Section','Level','XP','Streak','Answered','Accuracy','Last Exam','Best Exam','Badges','Last Active'];
+  const rows = students.map(s => [
+    s.student_name,
+    s.section === 'blue' ? '7th Blue' : '7th Red',
+    s.level,
+    s.total_xp || s.xp || 0,
+    s.streak ?? 0,
+    s.answered,
+    s.accuracy != null ? parseFloat(s.accuracy).toFixed(1) + '%' : '',
+    s.exam_score != null ? s.exam_score + '%' : '',
+    s.best_exam_score != null ? s.best_exam_score + '%' : '',
+    Array.isArray(s.badges) ? s.badges.join('; ') : '',
+    s.updated_at || ''
+  ]);
+  let csv = headers.join(',') + '\n';
+  for (const r of rows) {
+    csv += r.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',') + '\n';
+  }
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `scilab_students_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ===== NOTICE SYSTEM =====
+const NOTICE_URL = SUPABASE_URL + '/rest/v1/sciencelab_notices';
+
+async function sendNotice() {
+  const msg = document.getElementById('noticeInput').value.trim();
+  if (!msg) return;
+  const st = document.getElementById('noticeStatus');
+  st.textContent = 'Sending…';
+  try {
+    await fetch(NOTICE_URL + '?active=eq.true', {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false })
+    });
+    const res = await fetch(NOTICE_URL, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ message: msg, active: true })
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    st.textContent = '✓ Sent to all students';
+    setTimeout(() => st.textContent = '', 4000);
+  } catch(e) {
+    st.textContent = '✗ Error: ' + e.message;
+  }
+}
+
+async function clearNotice() {
+  const st = document.getElementById('noticeStatus');
+  try {
+    await fetch(NOTICE_URL + '?active=eq.true', {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: false })
+    });
+    document.getElementById('noticeInput').value = '';
+    st.textContent = '✓ Notice cleared';
+    setTimeout(() => st.textContent = '', 3000);
+  } catch(e) {
+    st.textContent = '✗ Error: ' + e.message;
+  }
+}
+
+// === READ RECEIPTS ===
+const READS_URL = SUPABASE_URL + '/rest/v1/sciencelab_notice_reads';
+let _readReceiptsVisible = false;
+
+function toggleReadReceipts() {
+  _readReceiptsVisible = !_readReceiptsVisible;
+  document.getElementById('readReceiptsPanel').style.display = _readReceiptsVisible ? '' : 'none';
+  if (_readReceiptsVisible) loadReadReceipts();
+}
+
+async function loadReadReceipts() {
+  const countEl = document.getElementById('readCount');
+  const readList = document.getElementById('readReceiptsList');
+  const notReadList = document.getElementById('notReadList');
+  countEl.textContent = 'Loading...';
+  readList.innerHTML = '';
+  notReadList.innerHTML = '';
+
+  try {
+    const nRes = await fetch(
+      NOTICE_URL + '?active=eq.true&select=id,message,created_at&limit=1',
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    const notices = await nRes.json();
+    if (!notices.length) {
+      countEl.textContent = 'No active notice';
+      return;
+    }
+    const notice = notices[0];
+    const sentAt = new Date(notice.created_at);
+
+    const rRes = await fetch(
+      READS_URL + '?notice_id=eq.' + notice.id + '&select=student_name,section,read_at',
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    const reads = await rRes.json();
+    const readNames = new Set(reads.map(r => r.student_name));
+
+    const notRead = allStudents.filter(s => !readNames.has(s.student_name));
+
+    countEl.textContent = `${reads.length} / ${allStudents.length} students read it`;
+
+    if (reads.length) {
+      readList.innerHTML = '<strong style="color:#4ade80">Read:</strong><br>' +
+        reads.map(r => {
+          const readAt = new Date(r.read_at);
+          const delaySec = Math.round((readAt - sentAt) / 1000);
+          let delayStr;
+          if (delaySec < 60) delayStr = delaySec + 's';
+          else if (delaySec < 3600) delayStr = Math.floor(delaySec/60) + 'm ' + (delaySec%60) + 's';
+          else delayStr = Math.floor(delaySec/3600) + 'h ' + Math.floor((delaySec%3600)/60) + 'm';
+          return `<span style="display:inline-block;background:#064e3b;color:#4ade80;padding:2px 8px;border-radius:10px;margin:2px;font-size:0.85em">${r.student_name} <small>(${delayStr})</small></span>`;
+        }).join('');
+    }
+
+    if (notRead.length) {
+      notReadList.innerHTML = '<strong style="color:#f87171;margin-top:8px;display:block">Not read:</strong><br>' +
+        notRead.map(s =>
+          `<span style="display:inline-block;background:#7f1d1d;color:#f87171;padding:2px 8px;border-radius:10px;margin:2px;font-size:0.85em">${s.student_name}</span>`
+        ).join('');
+    }
+  } catch(e) {
+    countEl.textContent = 'Error loading receipts';
+    console.error(e);
+  }
+}
+
+setInterval(function() {
+  if (_readReceiptsVisible) loadReadReceipts();
+}, 15000);
+
+// === INTERVENTION LOGS ===
+const INTERVENTION_TABLE = 'sciencelab_interventions';
+async function loadInterventions() {
+  const tbody = document.getElementById('interventionBody');
+  if (!tbody) return;
+  try {
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${INTERVENTION_TABLE}?select=*&order=created_at.desc&limit=50`,
+      { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
+    );
+    if (!res.ok) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--bad);padding:20px">Could not load interventions (HTTP ${res.status})</td></tr>`;
+      return;
+    }
+    const data = await res.json();
+    if (!data.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#8a8a8a;padding:20px">No intervention logs yet</td></tr>`;
+      return;
+    }
+    const rows = currentFilter === 'all' ? data : data.filter(d => d.section === currentFilter);
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#8a8a8a;padding:20px">No interventions for this section</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(d => {
+      const skillLabel = SKILLS.find(s => s.key === d.skill)?.label || d.skill || '---';
+      const secBadge = d.section === 'blue' ? '<span class="badge badge-blue">Blue</span>' : d.section === 'red' ? '<span class="badge badge-red">Red</span>' : d.section || '---';
+      return `<tr>
+        <td style="font-weight:600">${d.student_name || '---'}</td>
+        <td>${secBadge}</td>
+        <td>${skillLabel}</td>
+        <td style="white-space:normal;max-width:220px;font-size:12px">${d.confusion || '---'}</td>
+        <td style="white-space:normal;max-width:300px;font-size:12px">${d.response || '---'}</td>
+        <td>${relativeTime(d.created_at)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--bad);padding:20px">Error: ${e.message}</td></tr>`;
+  }
+}
+
+// Initial load
+refreshData();
+
+// Supabase Realtime
+const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const channel = sbClient.channel('scilab-realtime')
+  .on('postgres_changes',
+    { event: '*', schema: 'public', table: TABLE },
+    (payload) => {
+      console.log('Realtime update:', payload.eventType, payload.new?.student_name || '');
+      refreshData();
+    }
+  )
+  .subscribe((status) => {
+    const el = document.getElementById('realtimeStatus');
+    if (status === 'SUBSCRIBED') {
+      el.innerHTML = '&#x25cf; Live';
+      el.style.color = 'var(--ok)';
+    } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+      el.innerHTML = '&#x25cf; Disconnected';
+      el.style.color = 'var(--bad)';
+      if (!autoRefreshTimer) autoRefreshTimer = setInterval(refreshData, 15000);
+    }
+  });
+
+// Fallback polling
+autoRefreshTimer = setInterval(refreshData, 60000);
+</script>
+</body>
+</html>
