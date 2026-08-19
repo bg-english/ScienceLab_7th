@@ -2,7 +2,8 @@ rules_version = '2';
 
 // Firestore security rules for SciLab
 //   - Students sign in anonymously -> each has a stable uid on their device.
-//   - Each student can read/write ONLY their own score document (uid = doc id).
+//   - Students can read the whole scores collection (class leaderboard) but
+//     read/write details only on their OWN score document (uid = doc id).
 //   - Only the teacher (uid listed in /admins) can read everything.
 // To promote your teacher account:
 //   1) Sign in to the teacher dashboard once (it uses Anonymous auth) OR
@@ -24,10 +25,11 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
-    // Student scores: own doc only (teacher can read all for the dashboard)
+    // Student scores: leaderboard list is shared; writes are own doc only
     match /scores/{docId} {
-      allow read: if isTeacher() || isOwner(resource);
-      allow write: if isTeacher() || (request.auth != null
+      allow get: if isTeacher() || isOwner(resource);
+      allow list: if isTeacher() || request.auth != null;
+      allow create, update: if isTeacher() || (request.auth != null
         && request.auth.uid == docId
         && request.resource.data.uid == request.auth.uid);
       allow delete: if isTeacher();

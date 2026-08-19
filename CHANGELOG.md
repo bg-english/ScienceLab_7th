@@ -2,6 +2,18 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.1.2] — 2026-08-19
+
+### Fixed
+- **Science Ranking (leaderboard) showed "Missing or insufficient permissions"**:
+  the read rule `isOwner(resource)` only works for single-document `get`
+  queries, but the leaderboard is a `list` query over the whole `scores`
+  collection (in list queries `resource` doesn't exist, so it was always
+  denied). Rules now `allow get` on own doc only, and `allow list` for any
+  authenticated student (the leaderboard is shared by design). Verified live
+  as an anonymous student: list OK, own-doc get OK, other students' docs
+  still denied, own writes OK.
+
 ## [2.1.1] — 2026-08-19
 
 ### Fixed
