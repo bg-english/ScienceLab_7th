@@ -513,6 +513,8 @@ document.addEventListener('click',function(){ddMenu.classList.remove('show');ddB
 ddWrap.appendChild(ddBtn);ddWrap.appendChild(ddMenu);tabsEl.appendChild(ddWrap);
 
 function go(id){
+  var fe=document.activeElement;
+  if(fe&&fe.blur&&fe.closest&&fe.closest('.view'))fe.blur();
   document.querySelectorAll('.view').forEach(v=>{v.classList.add('hidden');v.setAttribute('aria-hidden','true');});
   var target=document.getElementById('v-'+id);target.classList.remove('hidden');target.setAttribute('aria-hidden','false');
   document.querySelectorAll('.tab').forEach(t=>{var isActive=t.dataset.v===id;t.classList.toggle('active',isActive);t.setAttribute('aria-selected',isActive?'true':'false');});

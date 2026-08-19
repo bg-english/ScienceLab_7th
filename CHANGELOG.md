@@ -2,6 +2,15 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.1.5] — 2026-08-19
+
+### Fixed
+- **Browser warning "Blocked aria-hidden... because its descendant retained
+  focus"**: navigating away from a view (e.g. Reinforce → Practice) hid the
+  view with `aria-hidden` while the just-clicked button still held focus.
+  `go()` now blurs the active element when it lives inside a view before
+  hiding it. Verified in a headless DOM (focus falls back to body).
+
 ## [2.1.4] — 2026-08-19
 
 ### Fixed
