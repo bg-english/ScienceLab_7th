@@ -37,26 +37,27 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 ## 3. Estado actual
 
 - ✅ App del estudiante: **funciona al 100% offline** (Learn, Practice, Flashcards, Exam, Write, Reinforce).
-- ⏳ Leaderboard, sincronización de progreso y dashboard del profesor: **esperan la configuración de Firebase**.
-- ⏳ Tutor IA y generador de ejercicios IA: **esperan la clave de Groq y el deploy de Cloud Functions**.
+- ✅ **Firebase configurado** (proyecto `scilab-7th`): auth anónima, Firestore `(default)`, reglas publicadas, doc `admins/{uid}` del profesor activo.
+- ✅ Leaderboard, sincronización y dashboard del profesor: **funcionando**.
+- ⏳ Tutor IA y generador de ejercicios IA: **esperan la clave de Groq y el deploy de Cloud Functions** (Paso 3 abajo).
 
----
+### Bugs corregidos el 2026-08-19 (sesión de configuración Firebase)
+
+1. **`teacher.html` no tenía `</script>` de cierre** al final del archivo → el navegador nunca ejecutaba el JavaScript del dashboard (spinner infinito, cero peticiones a Firebase). Fix: cerrar la etiqueta antes de `</body>`.
+2. **`teacher.html` nunca se autenticaba** (no había `signInAnonymously`) → con reglas que exigen auth, toda consulta daba "Missing or insufficient permissions". Fix: login anónimo automático antes de `refreshData()`.
+3. **Reglas con bug de lectura**: `isOwner(resource.data)` no funciona (un mapa no tiene `.id`). Fix: `isOwner(resource)` en la regla de lectura de `/scores`.
+4. **Base duplicada `default`** (sin paréntesis): la app usa `(default)`. Se eliminó la base errónea.
+5. **UID de `admins` debe coincidir con la sesión anónima del navegador** que abre `teacher.html` (obtener con `auth.currentUser.uid` en la consola; la sesión se guarda en localStorage del navegador, una por navegador/dispositivo).
 
 ## 4. LO QUE FALTA (pasos del usuario / profesor)
 
 ### Paso 1 — Crear el proyecto Firebase (5 min)
-1. Ir a https://console.firebase.google.com con cualquier cuenta de Google.
-2. **Add project** → nombre libre (ej. `scilab-7th`).
-3. **Authentication → Sign-in method → enable Anonymous**.
-4. **Firestore Database → Create database → Production mode**.
-5. **Project settings → Your apps → Web app (`</>`)** → copiar el objeto `firebaseConfig` (6 valores: apiKey, authDomain, projectId, storageBucket, messagingSenderId, appId).
-6. **Pegar esos 6 valores en el chat** para que el asistente los ponga en `index.html` y `teacher.html` (en el objeto `FIREBASE_CONFIG`). El apiKey de Firebase es público por diseño, no es secreto.
+✅ **HECHO 2026-08-19** — proyecto `scilab-7th` creado, auth anónima activada, Firestore `(default)` creada en `us-central`, firebaseConfig pegado en `index.html` y `teacher.html`.
 
 ### Paso 2 — Aplicar las reglas de seguridad (2 min)
-1. En Firebase Console → **Firestore Database → Rules** → pegar el contenido de `firebase/firestore.rules` → Publish.
-2. Crear un documento en la colección `admins` con id = tu uid (el uid aparece en Authentication al abrir la app una vez), para que el dashboard del profesor pueda leer todo.
+✅ **HECHO 2026-08-19** — reglas publicadas en `(default)` (con el fix `isOwner(resource)`), doc `admins/{uid}` del profesor creado.
 
-### Paso 3 — Desplegar la IA con Groq (5 min)
+### Paso 3 — Desplegar la IA con Groq (5 min) — **ÚNICO PASO QUE FALTA**
 1. Crear API key gratis en https://console.groq.com → API Keys.
 2. En la terminal (PowerShell), desde la carpeta `firebase`:
 ```
