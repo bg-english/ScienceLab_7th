@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -198,6 +198,10 @@ td { padding: 9px 12px; white-space: nowrap; }
   .summary-row { grid-template-columns: 1fr; }
   .filter-btns { flex-wrap: wrap; }
 }
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(80px); background: #0F3D2E; color: #fff; padding: 12px 20px; border-radius: 14px; font-size: 13px; font-weight: 600; z-index: 999; opacity: 0; transition: all .3s ease; box-shadow: 0 8px 24px rgba(0,0,0,.25); pointer-events: none; max-width: 90vw; text-align: center; }
+.toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
+.toast.bad { background: #b91c1c; }
+.toast.good { background: #16a34a; }
 </style>
 </head>
 <body>
@@ -249,7 +253,33 @@ td { padding: 9px 12px; white-space: nowrap; }
   </div>
 </div>
 
-<script>const FIREBASE_CONFIG = {
+<script>/* ===== global error catcher: every error shows a toast ===== */
+let _lastErrToast = 0;
+function toast(msg, type, dur) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  document.getElementById('toastMsg').textContent = msg;
+  t.className = 'toast show ' + (type || '');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.className = 'toast', dur || 2200);
+}
+function toastError(msg) {
+  const now = Date.now();
+  if (now - _lastErrToast < 8000) return;
+  _lastErrToast = now;
+  toast('⚠️ ' + msg, 'bad', 4000);
+}
+window.onerror = function (msg, src, line, col, err) {
+  toastError('JS Error: ' + String(msg).slice(0, 80) + ' (L' + line + ')');
+  console.error('Teacher Error:', msg, 'Line:', line, err);
+  return false;
+};
+window.addEventListener('unhandledrejection', function (e) {
+  const r = e.reason;
+  toastError('Error: ' + String(r && r.message ? r.message : r).slice(0, 80));
+  console.warn('Unhandled rejection:', r);
+});
+const FIREBASE_CONFIG = {
   apiKey: 'AIzaSyBFHpuEYiPObEX3pG3xR7xguMiY4aTCe1I',
   authDomain: 'scilab-7th.firebaseapp.com',
   projectId: 'scilab-7th',
@@ -268,7 +298,7 @@ function initFirebase() {
     db = firebase.firestore(firebaseApp);
     auth = firebase.auth(firebaseApp);
     return true;
-  } catch (e) { console.warn('Firebase init failed', e); return false; }
+  } catch (e) { console.warn('Firebase init failed', e); toastError('Firebase init failed'); return false; }
 }
 
 // HTML escaping to prevent stored XSS from DB data
@@ -349,7 +379,8 @@ function render() {
   const students = filtered();
   const totalStudents = students.length;
   const accByStudent = students.map(s => ({ ...s, accuracy: s.answered > 0 ? Math.round(s.correct / s.answered * 100) : 0 }));
-  const avgAcc = avg(accByStudent, 'accuracy');
+  const accActive = accByStudent.filter(s => s.answered > 0);
+  const avgAcc = avg(accActive, 'accuracy');
   const examStudents = students.filter(s => s.examScore != null);
   const avgExam = avg(examStudents, 'examScore');
 
@@ -413,12 +444,12 @@ function render() {
       <td><span class="badge ${s.section === 'blue' ? 'badge-blue' : 'badge-red'}">${s.section === 'blue' ? '7th Blue' : '7th Red'}</span></td>
       <td>${s.level ?? 0}</td>
       <td>${(s.totalXp || s.xp || 0).toLocaleString()}</td>
-      <td>${s.streak ?? 0}ðŸ”¥</td>
+      <td>${s.streak ?? 0}🔥</td>
       <td>${s.answered ?? 0}</td>
       <td class="${accClass(accVal)}">${accVal.toFixed(1)}%</td>
       <td>${noExam ? '<span style="color:#bbb">&mdash;</span>' : s.examScore + '%'}</td>
       <td>${bestExam != null ? '<b>' + bestExam + '%</b>' : '<span style="color:#bbb">&mdash;</span>'}</td>
-      <td title="${Array.isArray(s.badges) ? esc(s.badges.join(', ')) : ''}">${badgeCount > 0 ? 'ðŸ…' + badgeCount : '<span style="color:#bbb">0</span>'}</td>
+      <td title="${Array.isArray(s.badges) ? esc(s.badges.join(', ')) : ''}">${badgeCount > 0 ? '🏅' + badgeCount : '<span style="color:#bbb">0</span>'}</td>
       <td>${relativeTime(s.updatedAt)}</td>
       <td><span class="status-dot ${statusClass(s.updatedAt)}"></span></td>
     </tr>`;
@@ -481,7 +512,7 @@ function render() {
   }
 
   html += `<div class="weakness-panel">
-    <h3>&#128202; Class Skill Accuracy (Lowest â†’ Highest)</h3>`;
+    <h3>&#128202; Class Skill Accuracy (Lowest → Highest)</h3>`;
   for (const sk of weakestFirst) {
     const barCls = sk.pct < 40 ? 'bar-red' : sk.pct < 70 ? 'bar-yellow' : 'bar-green';
     html += `<div class="weakness-bar-row">
@@ -553,7 +584,8 @@ function render() {
   const blues = allStudents.filter(s => s.section === 'blue');
   const reds = allStudents.filter(s => s.section === 'red');
   function compCard(label, badgeCls, arr) {
-    const a = avg(arr.map(s => ({ ...s, accuracy: s.answered > 0 ? Math.round(s.correct / s.answered * 100) : 0 })), 'accuracy');
+    const accArr = arr.filter(s => s.answered > 0);
+    const a = accArr.length ? accArr.reduce((sum, s) => sum + Math.round(s.correct / s.answered * 100), 0) / accArr.length : null;
     const x = avg(arr, 'totalXp') || avg(arr, 'xp');
     const exArr = arr.filter(s => s.examScore != null);
     const e = avg(exArr, 'examScore');
@@ -568,8 +600,8 @@ function render() {
       <div class="stat-row"><span>Avg Last Exam</span><span class="stat-val">${e != null ? e.toFixed(1) + '%' : '---'}</span></div>
       <div class="stat-row"><span>Avg Best Exam</span><span class="stat-val">${be != null ? be.toFixed(1) + '%' : '---'}</span></div>
       <div class="stat-row"><span>Exams Completed</span><span class="stat-val">${exArr.length} / ${arr.length}</span></div>
-      <div class="stat-row"><span>Avg Streak</span><span class="stat-val">${st != null ? st.toFixed(1) + 'ðŸ”¥' : '---'}</span></div>
-      <div class="stat-row"><span>Total Badges</span><span class="stat-val">ðŸ… ${bdg}</span></div>
+      <div class="stat-row"><span>Avg Streak</span><span class="stat-val">${st != null ? st.toFixed(1) + '🔥' : '---'}</span></div>
+      <div class="stat-row"><span>Total Badges</span><span class="stat-val">🏅 ${bdg}</span></div>
     </div>`;
   }
   html += `<div class="compare-row">
@@ -654,10 +686,10 @@ function render() {
 
   // Badges detail
   const BADGE_LABELS = {
-    first: 'ðŸŽ¯ First Discovery', streak3: 'ðŸ”¥ 3-Day Streak', practice50: 'âš¡ 50 Answered',
-    practice100: 'ðŸ’« 100 Answered', accuracy80: 'ðŸŽ–ï¸ Accuracy Ace', photo: 'ðŸŒž Photosynthesis Pro',
-    resp: 'ðŸ« Respiration Hero', tier2: 'ðŸ§­ Level 2', tier4: 'âš”ï¸ Level 4', tier6: 'ðŸ‘‘ Level 6',
-    exam: 'ðŸ† Exam Warrior', perfect: 'ðŸ’¯ Perfect Exam', explorer: 'ðŸŒ All Skills'
+    first: '🎯 First Discovery', streak3: '🔥 3-Day Streak', practice50: '⚡ 50 Answered',
+    practice100: '💫 100 Answered', accuracy80: '🎖️ Accuracy Ace', photo: '🌞 Photosynthesis Pro',
+    resp: '🫁 Respiration Hero', tier2: '🧭 Level 2', tier4: '⚔️ Level 4', tier6: '🔑 Level 6',
+    exam: '🏆 Exam Warrior', perfect: '💯 Perfect Exam', explorer: '🌍 All Skills'
   };
   const studentsWithBadges = students.filter(s => Array.isArray(s.badges) && s.badges.length > 0);
   if (studentsWithBadges.length) {
@@ -703,7 +735,7 @@ async function refreshData() {
   try {
     if (!CONFIGURED) {
       document.getElementById('mainContent').innerHTML =
-        `<div class="loading-overlay" style="color:var(--bad)">âš™ï¸ Firebase is not configured yet.<br><br>
+        `<div class="loading-overlay" style="color:var(--bad)">⚠️ Firebase is not configured yet.<br><br>
          Open <b>teacher.html</b> and paste your <code>FIREBASE_CONFIG</code> values (see README).<br><br>
          <span style="font-size:13px;color:#8a8a8a">Students will start appearing here as soon as they practice.</span></div>`;
       return;
@@ -716,6 +748,7 @@ async function refreshData() {
       `Last refreshed: ${now.toLocaleTimeString('en-US', { hour12: false })}`;
   } catch (e) {
     console.error('Fetch error:', e);
+    toastError('Failed to load data');
     document.getElementById('mainContent').innerHTML =
       `<div class="loading-overlay" style="color:var(--bad)">Failed to load data. Check the Firebase connection or Firestore rules.<br><small>${esc(e.message)}</small></div>`;
   }
@@ -755,8 +788,8 @@ async function sendNotice() {
   const msg = document.getElementById('noticeInput').value.trim();
   if (!msg) return;
   const st = document.getElementById('noticeStatus');
-  if (!CONFIGURED) { st.textContent = 'âœ— Configure Firebase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
-  st.textContent = 'Sendingâ€¦';
+  if (!CONFIGURED) { st.textContent = '✖ Configure Firebase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
+  st.textContent = 'Sending…';
   try {
     // Deactivate previous notices
     const activeSnap = await db.collection('notices').where('active', '==', true).get();
@@ -764,26 +797,28 @@ async function sendNotice() {
     activeSnap.forEach(doc => batch.update(doc.ref, { active: false }));
     await batch.commit();
     await db.collection('notices').add({ message: msg, active: true, createdAt: new Date().toISOString() });
-    st.textContent = 'âœ“ Sent to all students';
+    st.textContent = '✓ Sent to all students';
     setTimeout(() => st.textContent = '', 4000);
   } catch(e) {
-    st.textContent = 'âœ— Error: ' + esc(e.message);
+    st.textContent = '✖ Error: ' + esc(e.message);
+    toastError('Could not send notice');
   }
 }
 
 async function clearNotice() {
   const st = document.getElementById('noticeStatus');
-  if (!CONFIGURED) { st.textContent = 'âœ— Configure Firebase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
+  if (!CONFIGURED) { st.textContent = '✖ Configure Firebase first (see README)'; setTimeout(() => st.textContent = '', 4000); return; }
   try {
     const activeSnap = await db.collection('notices').where('active', '==', true).get();
     const batch = db.batch();
     activeSnap.forEach(doc => batch.update(doc.ref, { active: false }));
     await batch.commit();
     document.getElementById('noticeInput').value = '';
-    st.textContent = 'âœ“ Notice cleared';
+    st.textContent = '✓ Notice cleared';
     setTimeout(() => st.textContent = '', 3000);
   } catch(e) {
-    st.textContent = 'âœ— Error: ' + esc(e.message);
+    st.textContent = '✖ Error: ' + esc(e.message);
+    toastError('Could not clear notice');
   }
 }
 
@@ -845,6 +880,7 @@ async function loadReadReceipts() {
   } catch(e) {
     countEl.textContent = 'Error loading receipts';
     console.error(e);
+    toastError('Could not load read receipts');
   }
 }
 
@@ -886,6 +922,7 @@ async function loadInterventions() {
     }).join('');
   } catch(e) {
     tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--bad);padding:20px">Error: ${esc(e.message)}</td></tr>`;
+    toastError('Could not load intervention logs');
   }
 }
 
@@ -896,12 +933,12 @@ function startListeners() {
   if (unsubScores) unsubScores();
   unsubScores = db.collection('scores').onSnapshot(() => {
     refreshData();
-  }, (err) => { console.warn('Scores listener error', err); });
+  }, (err) => { console.warn('Scores listener error', err); toastError('Live scores feed error'); });
 
   if (unsubInterventions) unsubInterventions();
   unsubInterventions = db.collection('interventions').onSnapshot(() => {
     if (document.getElementById('interventionBody')) loadInterventions();
-  }, (err) => { console.warn('Interventions listener error', err); });
+  }, (err) => { console.warn('Interventions listener error', err); toastError('Live interventions feed error'); });
 }
 
 // Initial load
@@ -915,6 +952,7 @@ if (!CONFIGURED) {
       console.log('Teacher signed in anonymously');
     } catch (e) {
       console.warn('Anonymous sign-in failed', e);
+      toastError('Sign-in failed — check connection');
     }
     await refreshData();
     startListeners();
@@ -922,5 +960,6 @@ if (!CONFIGURED) {
 }
 setInterval(refreshData, 60000);
 </script>
+<div class="toast" id="toast"><span id="toastMsg"></span></div>
 </body>
 </html>

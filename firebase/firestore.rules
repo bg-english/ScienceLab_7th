@@ -26,7 +26,7 @@ service cloud.firestore {
 
     // Student scores: own doc only (teacher can read all for the dashboard)
     match /scores/{docId} {
-      allow read: if isTeacher() || isOwner(resource.data);
+      allow read: if isTeacher() || isOwner(resource);
       allow write: if isTeacher() || (request.auth != null
         && request.auth.uid == docId
         && request.resource.data.uid == request.auth.uid);

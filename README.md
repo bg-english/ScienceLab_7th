@@ -28,7 +28,7 @@ for Science and for a younger audience.
 
 ## Features
 
-- **9 views**: Home, Learn, Practice, Flashcards, Reinforce, Write, Exam, Leaderboard
+- **8 views**: Home, Learn, Practice, Flashcards, Reinforce, Write, Exam, Leaderboard
 - **12 skills** mapped to the temario:
   Photosynthesis Process · What Plants Eat · Plant Food & Products · Chlorophyll & Leaves ·
   Stomata & Gas Exchange · Plant Respiration · Root Respiration · Respiratory Organs ·
@@ -38,7 +38,8 @@ for Science and for a younger audience.
 - **Flashcards** with Leitner boxes (Box 1 → 5 = mastered)
 - **AI Tutor** — after 2 wrong answers on a topic, a modal lets the student ask the AI
   to explain it (in English or Spanish). Uses **Groq** (fast + free tier).
-- **AI-generated exercises** — adaptive, focused on the student's weak skills
+- **AI exercise generator** (Cloud Function `scienceGenerateExercises` via Groq) —
+  ready to power adaptive practice focused on weak skills; UI wiring pending
 - **Writing lab** — the meaningful learning experiences (song, poster, model report)
 - **Final exam** with best-score tracking
 - **Teacher dashboard** — live real-time tracking, skill heatmap, weakness analysis,

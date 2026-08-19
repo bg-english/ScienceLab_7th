@@ -385,13 +385,24 @@ button{font-family:'Lexend';cursor:pointer}
    Design layer mirrors FutureLab (Future_and_conditionals repo).
    ============================================================ */
 
-/* ===== global error catcher (dev aid) ===== */
+/* ===== global error catcher: every error shows a toast ===== */
+let _lastErrToast=0;
+function toastError(msg){
+  const now=Date.now();
+  if(now-_lastErrToast<8000)return;
+  _lastErrToast=now;
+  toast('⚠️ '+msg,'bad',4000);
+}
 window.onerror=function(msg,src,line,col,err){
-  var t=document.getElementById('toast');
-  if(t){document.getElementById('toastMsg').textContent='JS Error: '+msg.slice(0,80)+' (L'+line+')';t.className='toast show bad';clearTimeout(t._t);t._t=setTimeout(function(){t.className='toast';},5000);}
+  toastError('JS Error: '+String(msg).slice(0,80)+' (L'+line+')');
   console.error('SciLab Error:',msg,'Line:',line,err);
   return false;
 };
+window.addEventListener('unhandledrejection',function(e){
+  const r=e.reason;
+  toastError('Error: '+String(r&&r.message?r.message:r).slice(0,80));
+  console.warn('Unhandled rejection:',r);
+});
 
 /* ===== Firebase config (paste your firebaseConfig values here) ===== */
 const FIREBASE_CONFIG={
@@ -412,13 +423,13 @@ function initFirebase(){
     db=firebase.firestore(firebaseApp);
     auth=firebase.auth(firebaseApp);
     return true;
-  }catch(e){console.warn('Firebase init failed',e);return false;}
+  }catch(e){console.warn('Firebase init failed',e);toastError('Firebase init failed');return false;}
 }
 async function ensureAuth(){
   if(!FB_CONFIGURED)return false;
   if(auth.currentUser){myUid=auth.currentUser.uid;return true;}
   try{const c=await auth.signInAnonymously();myUid=c.user.uid;firebaseReady=true;return true;}
-  catch(e){console.warn('Anon sign-in failed',e);return false;}
+  catch(e){console.warn('Anon sign-in failed',e);toastError('Sign-in failed — check connection');return false;}
 }
 
 /* ===== guarded storage ===== */
@@ -501,14 +512,12 @@ ddBtn.onclick=function(e){e.stopPropagation();var open=ddMenu.classList.toggle('
 document.addEventListener('click',function(){ddMenu.classList.remove('show');ddBtn.setAttribute('aria-expanded','false');});
 ddWrap.appendChild(ddBtn);ddWrap.appendChild(ddMenu);tabsEl.appendChild(ddWrap);
 
-var _activeView='dash';
 function go(id){
   document.querySelectorAll('.view').forEach(v=>{v.classList.add('hidden');v.setAttribute('aria-hidden','true');});
   var target=document.getElementById('v-'+id);target.classList.remove('hidden');target.setAttribute('aria-hidden','false');
   document.querySelectorAll('.tab').forEach(t=>{var isActive=t.dataset.v===id;t.classList.toggle('active',isActive);t.setAttribute('aria-selected',isActive?'true':'false');});
   document.querySelectorAll('.tab-dd-item').forEach(t=>{var isActive=t.dataset.v===id;t.classList.toggle('active',isActive);});
   window.scrollTo({top:0,behavior:'smooth'});
-  _activeView=id;
   if(id==='dash')renderDash();
   if(id==='learn')renderLearn();
   if(id==='practice')renderPracticeSetup();
@@ -536,7 +545,7 @@ function showLevelUp(){
 }
 
 /* ===== toast + tts + confetti ===== */
-function toast(msg,type){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;document.getElementById('toastFace').src='';t.className='toast show '+(type||'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',2200);}
+function toast(msg,type,dur){const t=document.getElementById('toast');document.getElementById('toastMsg').textContent=msg;document.getElementById('toastFace').src='';t.className='toast show '+(type||'');clearTimeout(t._t);t._t=setTimeout(()=>t.className='toast',dur||2200);}
 function speak(text){if(!('speechSynthesis'in window))return;try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='en-US';u.rate=.92;speechSynthesis.speak(u);}catch(e){}}
 
 /* ===== GLOBAL LOADER UTILITY ===== */
@@ -812,15 +821,11 @@ const EXAM=[
 ];
 
 /* ===== PRACTICE ENGINE ===== */
-let queue=[],qIdx=0,sessionMode='all',curItem=null,hintUsed=false;
-var _staticExhausted=false;
+let queue=[],qIdx=0,curItem=null;
 function norm(q){return (q||'').toLowerCase().replace(/\s+/g,' ').trim();}
 function shuffle(a){return a.map(x=>[Math.random(),x]).sort((p,q)=>p[0]-q[0]).map(x=>x[1]);}
 function buildQueue(mode,focusSk){
   if(mode==='review'){const ids=state.review.slice();queue=ids.map(i=>ITEMS[i]).filter(Boolean);if(!queue.length)queue=[];return;}
-  var skLevels=Object.keys(SKILLS).map(function(s){return(state.skillLvl[s]||{lv:1}).lv;});
-  var avgSkLv=Math.round(skLevels.reduce(function(a,b){return a+b;},0)/skLevels.length);
-  var maxTier=avgSkLv>=51?4:avgSkLv>=31?3:avgSkLv>=16?2:1;
   var pool=ITEMS.filter(function(it){
     if(focusSk&&it.sk!==focusSk)return false;
     return true;
@@ -839,7 +844,7 @@ function buildQueue(mode,focusSk){
 }
 function startPractice(mode,focusSk){
   try{
-    resetStruggleTracking();sessionMode=focusSk?'skill:'+focusSk:mode;
+    resetStruggleTracking();
     buildQueue(mode,focusSk);
     qIdx=0;
     if(mode==='review'&&!queue.length){
@@ -847,16 +852,7 @@ function startPractice(mode,focusSk){
     }
     if(!queue.length){document.getElementById('v-practice').innerHTML='<div style="text-align:center;padding:20px"><p>No exercises found. Try again!</p><button class="btn btn-green" onclick="startPractice(\'all\')">Retry</button></div>';return;}
     renderItem();
-  }catch(err){console.error('startPractice error:',err);var e=document.getElementById('v-practice');if(e)e.innerHTML='<div style="padding:20px;color:var(--red)">Error loading exercises. Please refresh the page.<br><small>'+esc(err.message)+'</small></div>';}
-}
-function fetchAIExercises(callback,focusSkill){
-  var skillLevels={};Object.keys(SKILLS).forEach(function(s){skillLevels[s]=(state.skillLvl[s]||{lv:1}).lv;});
-  var payload={level:state.level,mastery:state.mastery||{},skillLevels:skillLevels,count:5,seenQuestions:Object.keys(state.seenQ).slice(-40)};
-  if(focusSkill)payload.skill=focusSkill;
-  if(!FB_CONFIGURED||typeof firebase==='undefined'||!firebase.functions){callback([]);return;}
-  firebase.functions(firebaseApp).httpsCallable('scienceGenerateExercises')(payload)
-    .then(function(res){callback((res.data&&res.data.exercises)||[]);})
-    .catch(function(){callback([]);});
+  }catch(err){console.error('startPractice error:',err);toastError('Error loading exercises');var e=document.getElementById('v-practice');if(e)e.innerHTML='<div style="padding:20px;color:var(--red)">Error loading exercises. Please refresh the page.<br><small>'+esc(err.message)+'</small></div>';}
 }
 function renderItem(){
   const e=document.getElementById('v-practice');
@@ -874,7 +870,7 @@ function renderItem(){
     e.innerHTML='<div style="text-align:center;padding:10px"><div style="font-size:3.4rem;animation:bob 5s ease-in-out infinite">🌱</div><h3 style="margin:10px 0">Well done, '+firstName()+'! Session complete! 🎉</h3>'+skillSnap+'<p style="opacity:.75">Overall accuracy: '+acc+'%. What you missed has been saved for Smart Review.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px"><button class="btn btn-green" onclick="startPractice(\'all\')">Next round ✨</button><button class="btn btn-ghost" onclick="go(\'cards\')">Go to flashcards →</button></div>'+nextBanner+'</div>';
     confetti();return;
   }
-  curItem=queue[qIdx];hintUsed=false;const it=curItem;const idx=ITEMS.indexOf(it);
+  curItem=queue[qIdx];const it=curItem;
   if(it.q)state.seenQ[norm(it.q)]=true;
   let body;
   if(it.type==='fill'){body='<div class="eq-fill"><input id="fillInput" placeholder="Type here…" autocomplete="off" onkeydown="if(event.key===\'Enter\')submitAnswer()"></div>';}
@@ -899,7 +895,6 @@ function renderItem(){
 function submitAnswer(optIdx){
   const it=curItem;if(!it)return;
   const correct = it.type==='fill' ? checkFill() : optIdx===it.a;
-  hintUsed=false;
   const isCorrect = correct;
   const fbEl=document.getElementById('eqFb');
   if(it.type!=='fill'){
@@ -919,7 +914,7 @@ function submitAnswer(optIdx){
   }
   const hadXP = isCorrect ? 10 : 2;
   addXP(hadXP);
-  syncToSupabase();
+  syncToFirestore();
   // next
   document.getElementById('eqFb').scrollIntoView({behavior:'smooth',block:'nearest'});
   setTimeout(()=>{qIdx++;renderItem();},1600);
@@ -1010,6 +1005,7 @@ function submitIntervention(skill){
       stopLoader();
       theory.innerHTML='<p style="color:var(--bad)">Connection error. <button class="btn btn-ghost" style="margin-top:8px" onclick="closeIntervention()">Continue</button></p>';
       document.querySelectorAll('.interv-actions .btn').forEach(function(b){b.disabled=false;});
+      toastError('AI tutor connection error');
     }
   };
   call();
@@ -1162,7 +1158,7 @@ function rateCard(grade){
   persist();
   const xp = grade>0?8 : grade<0?1 : 4;
   addXP(xp);
-  syncToSupabase();
+  syncToFirestore();
   toast(grade>0?'🌟 Card learned!':grade<0?'Keep practicing, you got this!':'Nice job — keep reviewing!','good');
   renderDeck();
 }
@@ -1316,6 +1312,7 @@ async function loadBoard(sortKey){
     e.innerHTML=html;
   }catch(err){
     e.innerHTML='<span class="eyebrow">🏅 Leaderboard</span><h2 class="h-title">Science Ranking</h2><p style="color:var(--bad)">Could not load leaderboard. Check the Firebase connection or Firestore rules.<br><small>'+esc(err.message)+'</small></p>';
+    toastError('Could not load leaderboard');
   }
 }
 
@@ -1369,7 +1366,7 @@ function submitName(){
   Store.set('sl_player_name',playerName);
   document.getElementById('nameModal').classList.add('hidden');
   ensureAuth().then(function(){
-    syncToSupabase();
+    syncToFirestore();
     renderHUD();
     renderDash();
     toast('Welcome, '+firstName()+'! 🌿','good');
@@ -1403,9 +1400,9 @@ async function doSync(){
   try{
     await db.collection('scores').doc(myUid).set(buildSyncBody(),{merge:true});
     showSyncStatus('ok');
-  }catch(e){console.warn('Sync error:',e);showSyncStatus('error');}
+  }catch(e){console.warn('Sync error:',e);showSyncStatus('error');toastError('Sync failed — offline');}
 }
-function syncToSupabase(){
+function syncToFirestore(){
   if(!FB_CONFIGURED||!myUid)return;
   clearTimeout(syncTimer);
   showSyncStatus('syncing');
@@ -1442,8 +1439,8 @@ function watchNotices(){
         const id=snap.docs[0].id;
         bar.innerHTML='📢 <b>Teacher:</b> '+esc(n.message)+' <button onclick="ackNotice(\''+escAttr(id)+'\')" style="background:rgba(255,255,255,.25);color:#fff;border:none;padding:4px 14px;border-radius:20px;font-family:inherit;font-weight:600;cursor:pointer">✓ Got it</button>';
         bar.classList.remove('hidden');
-      },function(err){console.warn('Notice listener error',err);});
-  }catch(e){console.warn('watchNotices error',e);}
+      },function(err){console.warn('Notice listener error',err);toastError('Notice feed error');});
+  }catch(e){console.warn('watchNotices error',e);toastError('Notice feed error');}
 }
 async function ackNotice(id){
   if(!FB_CONFIGURED||!myUid||!playerName)return;
@@ -1455,7 +1452,7 @@ async function ackNotice(id){
       section:playerSection||null,
       readAt:new Date().toISOString()
     });
-  }catch(e){}
+}catch(e){toastError('Could not save read receipt');}
   document.getElementById('noticeBar').classList.add('hidden');
 }
 
@@ -1495,7 +1492,7 @@ function init(){
   go('dash');
   initFirebase();
   ensureAuth().then(function(){
-    if(playerName)syncToSupabase();
+    if(playerName)syncToFirestore();
     watchNotices();
   });
   // Auto-suggest weakest skill banner

@@ -21,7 +21,7 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 
 1. **Cloné el repo original** `bg-english/Future_and_conditionals` (app de Inglés de 8º, FutureLab) para replicar su arquitectura y diseño.
 2. **Leí el temario** `7th GRADE NEWS SCIENCE.docx` (3 lecciones, fechas, versículos, objetivos).
-3. **Construí la app de estudiante** (`index.html`): 9 vistas, 12 habilidades, 60 preguntas, 16 flashcards, 4 prompts de escritura, examen de 12 preguntas, sistema XP/niveles/rachas/22 insignias, tutor IA y generador de ejercicios por IA.
+3. **Construí la app de estudiante** (`index.html`): 8 vistas, 12 habilidades, 60 preguntas, 16 flashcards, 4 prompts de escritura, examen de 12 preguntas, sistema XP/niveles/rachas/22 insignias, tutor IA y generador de ejercicios por IA.
 4. **Construí el dashboard del profesor** (`teacher.html`): seguimiento en tiempo real, heatmap, análisis de debilidades, avisos con recibos de lectura, logs de ayuda IA, exportar CSV.
 5. **Seguridad aplicada:**
    - Corregí el bug de las flashcards (Good/Okay/Hard estaban invertidos).
@@ -45,10 +45,21 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 
 1. **`teacher.html` no tenía `</script>` de cierre** al final del archivo → el navegador nunca ejecutaba el JavaScript del dashboard (spinner infinito, cero peticiones a Firebase). Fix: cerrar la etiqueta antes de `</body>`.
 2. **`teacher.html` nunca se autenticaba** (no había `signInAnonymously`) → con reglas que exigen auth, toda consulta daba "Missing or insufficient permissions". Fix: login anónimo automático antes de `refreshData()`.
-3. **Reglas con bug de lectura**: `isOwner(resource.data)` no funciona (un mapa no tiene `.id`). Fix: `isOwner(resource)` en la regla de lectura de `/scores`.
+3. **Reglas con bug de lectura**: `isOwner(resource.data)` no funciona (un mapa no tiene `.id`). Fix: `isOwner(resource)` en la regla de lectura de `/scores`. ⚠️ El 2026-08-19 la auditoría en vivo descubrió que las reglas **publicadas** seguían rotas (los alumnos no podían leer `scores`) — se re-publicaron con el fix y se verificó.
 4. **Base duplicada `default`** (sin paréntesis): la app usa `(default)`. Se eliminó la base errónea.
 5. **UID de `admins` debe coincidir con la sesión anónima del navegador** que abre `teacher.html` (obtener con `auth.currentUser.uid` en la consola; la sesión se guarda en localStorage del navegador, una por navegador/dispositivo).
 6. **Groq**: el secreto `GROQ_API_KEY` se liga a las funciones solo con `defineSecret()` de `firebase-functions/params` (el patrón viejo `process.env` no se liga). Al actualizar la clave, la CLI pregunta si re-desplegar: responder **yes**.
+
+### Sesión 2026-08-19 (auditoría profunda + toasts de error)
+
+1. **Toasts de error en ambas apps** (`index.html` y `teacher.html`): cada error muestra un toast con su tipo (`⚠️`). Cobertura: JS global (`onerror` + `unhandledrejection`), sync/offline, leaderboard, tutor IA, avisos, recibos de lectura, logs de intervención y login. Throttle de 8s para no spamear. CSS del toast agregado a `teacher.html` (antes no tenía).
+2. **Reglas Firestore re-publicadas** con `isOwner(resource)` — la prueba en vivo confirmó que los alumnos ahora SÍ leen `scores` (leaderboard arreglado).
+3. **Índice compuesto desplegado** (`firebase/firestore.indexes.json`): la query de avisos de los alumnos (`active == true ORDER BY createdAt DESC`) ya no falla.
+4. **Generador de ejercicios IA arreglado**: devolvía 0 ejercicios con `count:10` (truncado a 1600 tokens). Ahora: JSON object, `max_tokens: 3200`, retry 1 vez y parser `parseExerciseJson`/`repairJson` con 8 tests unitarios en `C:\Users\Usuario\AppData\Local\Temp\opencode\fbtest`.
+5. **Mojibake de `teacher.html` corregido** (41 emojis doble-codificados → emojis reales, 0 restantes).
+6. **Promedios del dashboard**: alumnos con 0 respuestas ya no bajan la precisión de clase/sección.
+7. **Limpieza**: código muerto eliminado de `index.html` (`fetchAIExercises`, `sessionMode`, `maxTier`, `hintUsed`, `idx`, `_staticExhausted`, `_activeView`); `syncToSupabase` → `syncToFirestore`; `.gitignore` creado.
+8. **Nota**: `scienceGenerateExercises` sigue sin cablear en el UI (el botón de ejercicios IA no existe aún en la interfaz de práctica).
 
 ## 4. LO QUE FALTA (pasos del usuario / profesor)
 

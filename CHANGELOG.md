@@ -2,6 +2,36 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.1.0] — 2026-08-19
+
+### Added
+- **Error toasts in both apps**: every error now shows a toast with its type
+  (`⚠️` via `toastError`, global `window.onerror` + `unhandledrejection`
+  handlers, throttled to avoid spam). Covers JS errors, sync/offline, leaderboard,
+  AI tutor, notices, read receipts, interventions and sign-in failures.
+
+### Fixed
+- **Firestore rules**: students could not read `scores` (leaderboard broken).
+  The published rules still used the broken `isOwner(resource.data)` form —
+  republished with `isOwner(resource)`. Verified in live tests.
+- **Notices query failed** with "missing composite index" — added and deployed
+  `firebase/firestore.indexes.json` (`notices`: active ASC + createdAt DESC).
+- **AI exercise generator returned 0 exercises for count=10** (output truncated
+  at max_tokens 1600): now requests `{"exercises":[...]}` JSON, `max_tokens: 3200`,
+  retries once on parse failure, and uses a robust `parseExerciseJson` /
+  `repairJson` parser (8 unit tests, all passing). Full sets now return reliably.
+- **teacher.html mojibake**: 41 double-encoded emoji characters (badges,
+  buttons, notices) restored to proper emoji (verified 0 remaining).
+- **teacher.html averages**: students with 0 answers no longer count as 0%
+  accuracy in class/section averages (`avgAcc`, `compCard`).
+- Removed dead code from index.html (`fetchAIExercises`, `sessionMode`,
+  `maxTier`, `avgSkLv`, `hintUsed`, `idx`, `_staticExhausted`, `_activeView`)
+  and renamed the misleading `syncToSupabase` → `syncToFirestore`.
+
+### Chores
+- Added `.gitignore` (node_modules, logs, stray root lockfile).
+- README: "9 views" → 8; AI generator wording clarified.
+
 ## [2.0.0] — 2026-08-18
 
 ### Changed
