@@ -39,7 +39,7 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 - ✅ App del estudiante: **funciona al 100% offline** (Learn, Practice, Flashcards, Exam, Write, Reinforce).
 - ✅ **Firebase configurado** (proyecto `scilab-7th`): auth anónima, Firestore `(default)`, reglas publicadas, doc `admins/{uid}` del profesor activo.
 - ✅ Leaderboard, sincronización y dashboard del profesor: **funcionando**.
-- ⏳ Tutor IA y generador de ejercicios IA: **esperan la clave de Groq y el deploy de Cloud Functions** (Paso 3 abajo).
+- ✅ **IA desplegada y probada** (2026-08-19): tutor IA (`scienceExplainTopic`) y generador de ejercicios (`scienceGenerateExercises`) funcionando con Groq. Proyecto en Blaze (pay-as-you-go, gratis dentro del free tier de Firebase y de Groq).
 
 ### Bugs corregidos el 2026-08-19 (sesión de configuración Firebase)
 
@@ -48,6 +48,7 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 3. **Reglas con bug de lectura**: `isOwner(resource.data)` no funciona (un mapa no tiene `.id`). Fix: `isOwner(resource)` en la regla de lectura de `/scores`.
 4. **Base duplicada `default`** (sin paréntesis): la app usa `(default)`. Se eliminó la base errónea.
 5. **UID de `admins` debe coincidir con la sesión anónima del navegador** que abre `teacher.html` (obtener con `auth.currentUser.uid` en la consola; la sesión se guarda en localStorage del navegador, una por navegador/dispositivo).
+6. **Groq**: el secreto `GROQ_API_KEY` se liga a las funciones solo con `defineSecret()` de `firebase-functions/params` (el patrón viejo `process.env` no se liga). Al actualizar la clave, la CLI pregunta si re-desplegar: responder **yes**.
 
 ## 4. LO QUE FALTA (pasos del usuario / profesor)
 
@@ -57,7 +58,11 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 ### Paso 2 — Aplicar las reglas de seguridad (2 min)
 ✅ **HECHO 2026-08-19** — reglas publicadas en `(default)` (con el fix `isOwner(resource)`), doc `admins/{uid}` del profesor creado.
 
-### Paso 3 — Desplegar la IA con Groq (5 min) — **ÚNICO PASO QUE FALTA**
+### Paso 3 — Desplegar la IA con Groq (5 min)
+✅ **HECHO 2026-08-19** — API key de Groq creada y guardada en Secret Manager (`GROQ_API_KEY`, versión 2), Cloud Functions `scienceExplainTopic` y `scienceGenerateExercises` desplegadas en `us-central1`, modelo **`openai/gpt-oss-20b`** (los modelos antiguos `llama-3.3-70b-versatile` / `llama-3.1-8b-instant` / `llama-4-scout` ya NO existen en cuentas free de Groq 2026). Secret Manager API habilitada, secretAccessor concedido al service account del proyecto. Comando para actualizar la clave si se revoca:
+```
+firebase functions:secrets:set GROQ_API_KEY --project scilab-7th   # responde "yes" al re-deploy
+```
 1. Crear API key gratis en https://console.groq.com → API Keys.
 2. En la terminal (PowerShell), desde la carpeta `firebase`:
 ```
