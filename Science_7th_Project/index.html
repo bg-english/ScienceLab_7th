@@ -844,6 +844,7 @@ function buildQueue(mode,focusSk){
 }
 function startPractice(mode,focusSk){
   try{
+    go('practice');
     resetStruggleTracking();
     buildQueue(mode,focusSk);
     qIdx=0;

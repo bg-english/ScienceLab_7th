@@ -2,6 +2,17 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.1.1] — 2026-08-19
+
+### Fixed
+- **Practice buttons did nothing outside the Practice view** (reported by the
+  teacher in class): the lesson page pills ("Photosynthesis Process", etc.),
+  the "Practice everything →" button, the Reinforce skill buttons and the
+  dashboard "Suggested focus" banner all called `startPractice()`, which
+  rendered the question into the *hidden* Practice view without navigating.
+  `startPractice()` now navigates to the Practice view first (`go('practice')`).
+  Verified with headless DOM tests (jsdom).
+
 ## [2.1.0] — 2026-08-19
 
 ### Added
