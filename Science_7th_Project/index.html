@@ -889,7 +889,7 @@ function renderItem(){
     '<div class="eq-q">'+qHTML+'</div>'+
     body+
     '<div id="eqFb"></div>'+
-    '<div class="eq-actions"><button class="btn btn-ghost btn-sm" onclick="if(confirm(\'Quit this round?\'))startPractice(\'all\')">Quit round</button></div>'+
+    '<div class="eq-actions"><button class="btn btn-ghost btn-sm" onclick="quitRound(this)">Quit round</button></div>'+
   '</div>';
   if(it.type==='fill')setTimeout(function(){var i=document.getElementById('fillInput');if(i)i.focus();},100);
 }
@@ -932,6 +932,15 @@ function showHint(){
   if(!it.hint)return;
   const fb=document.getElementById('eqFb');
   if(fb)fb.innerHTML+='<div class="eq-fb" style="margin-top:10px;background:var(--blue-lt);border:2px solid var(--blue)">💡 <b>Hint:</b> '+it.hint+'</div>';
+}
+function quitRound(btn){
+  if(btn._armed){startPractice('all');return;}
+  btn._armed=true;
+  btn.textContent='⚠️ Tap again to quit';
+  btn.style.background='var(--bad)';
+  btn.style.color='#fff';
+  clearTimeout(btn._t);
+  btn._t=setTimeout(function(){btn._armed=false;btn.textContent='Quit round';btn.style.background='';btn.style.color='';},3000);
 }
 var sessionWrong={},intervShownFor={};
 var STRUGGLE_THRESHOLD=2;

@@ -2,6 +2,14 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.1.3] — 2026-08-19
+
+### Fixed
+- **"Quit round" button did nothing**: it used the native `confirm()` dialog,
+  which is silently blocked (returns false) on many mobile browsers/webviews.
+  Replaced with an in-app two-tap confirmation ("Quit round" → "⚠️ Tap again
+  to quit" → quits; auto-disarms after 3 s). Works everywhere, no dialogs.
+
 ## [2.1.2] — 2026-08-19
 
 ### Fixed
