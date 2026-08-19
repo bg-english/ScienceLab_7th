@@ -2,6 +2,30 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.2.0] — 2026-08-19
+
+### Added
+- **Sections & Students management (teacher dashboard)**: new "Sections & Students"
+  panel. The teacher creates sections (name + login code + subjects list), adds
+  students individually or in bulk, sees their personal PINs, exports a codes CSV,
+  and deletes sections (cascade with students). Blue/Red are seeded automatically
+  on first use, so existing leaderboard data keeps working.
+- **Secure student login (student app)**: students log in with their **section code
+  + personal PIN** via the new `studentLogin` Cloud Function (server-side lookup —
+  the `sections`/`students` registries are teacher-only in Firestore rules). Before
+  entering, the app shows a confirmation screen with the student's full name,
+  section and subjects ("This is you?") so the profile can never be someone else's
+  by mistake.
+- **Switch profile chip** in the student header: "👤 Name · switch" re-opens the
+  login screen (useful on shared devices).
+- `scores` docs now carry `studentId`, `sectionId`, `sectionName`, `studentName`.
+- Teacher dashboard is fully section-dynamic: filter buttons, section weakness
+  comparison and comparison cards render from the `sections` collection.
+
+### Changed
+- Replaced the old pick-your-name roster (which let any student take any name)
+  with the code-based login.
+
 ## [2.1.5] — 2026-08-19
 
 ### Fixed

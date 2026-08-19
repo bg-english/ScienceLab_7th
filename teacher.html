@@ -202,6 +202,21 @@ td { padding: 9px 12px; white-space: nowrap; }
 .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 .toast.bad { background: #b91c1c; }
 .toast.good { background: #16a34a; }
+.panel-btns { display: flex; gap: 6px; }
+.panel-btn { font-family: 'Lexend', sans-serif; font-size: 12px; font-weight: 600; padding: 8px 14px; border-radius: 20px; border: 2px solid var(--line); background: var(--paper); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.panel-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.adm-input { width: 100%; box-sizing: border-box; padding: 9px 12px; border: 2px solid var(--line); border-radius: 10px; font-family: 'Lexend', sans-serif; font-size: 13px; margin-bottom: 8px; outline: none; }
+.adm-input:focus { border-color: var(--blue); }
+.adm-err { color: var(--bad); font-size: 12px; margin-bottom: 8px; min-height: 0; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.adm-table th, .adm-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; }
+.adm-table th { color: #8a8a8a; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.sec-card { border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; transition: border-color .15s; }
+.sec-card.active { border-color: var(--blue); background: #f0f4ff; }
+.mini-btn { border: 1px solid var(--line); background: var(--paper); border-radius: 8px; padding: 3px 7px; cursor: pointer; font-size: 12px; }
+.subj-chip { display: inline-block; background: #eef7f1; border: 1px solid #cfe8d8; color: var(--green); border-radius: 14px; padding: 2px 9px; font-size: 11px; font-weight: 600; margin: 2px; }
+.pin-chip { display: inline-block; background: #fff8e1; border: 1px solid #f0d9a0; color: #8a6d1a; border-radius: 10px; padding: 2px 10px; font-weight: 700; font-size: 12px; letter-spacing: .12em; }
 </style>
 </head>
 <body>
@@ -209,11 +224,11 @@ td { padding: 9px 12px; white-space: nowrap; }
 <!-- Top bar -->
 <div class="topbar">
   <h1><span>SciLab</span> &middot; Teacher Dashboard</h1>
-  <div class="filter-btns">
-    <button class="filter-btn active" data-section="all" onclick="setFilter('all',this)">All</button>
-    <button class="filter-btn" data-section="blue" onclick="setFilter('blue',this)">7th Blue</button>
-    <button class="filter-btn" data-section="red" onclick="setFilter('red',this)">7th Red</button>
+  <div class="panel-btns">
+    <button class="panel-btn active" data-panel="dash" onclick="showPanel('dash')">&#128202; Dashboard</button>
+    <button class="panel-btn" data-panel="admin" onclick="showPanel('admin')">&#128451; Sections &amp; Students</button>
   </div>
+  <div class="filter-btns" id="filterBtns"></div>
   <button class="icon-btn" onclick="refreshData()" id="refreshBtn">
     <span class="refresh-spin" id="refreshIcon">&#x21bb;</span> Refresh
   </button>
@@ -243,6 +258,58 @@ td { padding: 9px 12px; white-space: nowrap; }
   </div>
   <div id="readReceiptsList" style="display:flex;flex-wrap:wrap;gap:6px"></div>
   <div id="notReadList" style="margin-top:10px"></div>
+</div>
+
+<!-- Sections & Students -->
+<div id="adminPanel" style="display:none;padding:20px 24px;max-width:1200px;margin:0 auto">
+  <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+    <div style="flex:1;min-width:320px;background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">&#128451; Sections</h3>
+        <button class="icon-btn" onclick="openSecForm()">＋ New section</button>
+      </div>
+      <div id="sectionsList"><p style="color:#8a8a8a;font-size:13px">Loading sections...</p></div>
+      <div id="secForm" style="display:none;margin-top:12px;padding:12px;border:2px dashed var(--line);border-radius:12px">
+        <div style="font-weight:700;margin-bottom:8px" id="secFormTitle">New section</div>
+        <input id="secName" class="adm-input" placeholder="Name (e.g. 7th Green)">
+        <input id="secCode" class="adm-input" placeholder="Section code for students (e.g. 7GREEN)" maxlength="12">
+        <input id="secSubjects" class="adm-input" placeholder="Subjects, comma separated (e.g. Science, Math, English)">
+        <div id="secFormErr" class="adm-err"></div>
+        <div style="display:flex;gap:8px">
+          <button class="icon-btn" onclick="saveSec()">&#128190; Save</button>
+          <button class="icon-btn" onclick="closeSecForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div style="flex:1.5;min-width:380px;background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:6px">
+        <h3 style="margin:0">&#127891; Students — <span id="stuSectionLabel">—</span></h3>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="icon-btn" onclick="toggleAddStudent()">＋ Add</button>
+          <button class="icon-btn" onclick="toggleBulkStudents()">＋＋ Bulk</button>
+          <button class="icon-btn" onclick="exportCodesCSV()">&#8659; Codes CSV</button>
+        </div>
+      </div>
+      <div id="addStudentForm" style="display:none;margin-bottom:10px;padding:12px;border:2px dashed var(--line);border-radius:12px">
+        <div style="font-weight:700;margin-bottom:8px">Add a student</div>
+        <input id="stuName" class="adm-input" placeholder="Full name">
+        <input id="stuCode" class="adm-input" placeholder="Personal PIN (4 digits) — blank = auto" maxlength="4" inputmode="numeric">
+        <div id="addStuErr" class="adm-err"></div>
+        <button class="icon-btn" onclick="addStudent()">&#128190; Save student</button>
+      </div>
+      <div id="bulkStudentsForm" style="display:none;margin-bottom:10px;padding:12px;border:2px dashed var(--line);border-radius:12px">
+        <div style="font-weight:700;margin-bottom:8px">Bulk add — one name per line (PINs auto-generated)</div>
+        <textarea id="bulkNames" class="adm-input" rows="5" placeholder="Ana García&#10;Luis Pérez&#10;..."></textarea>
+        <div id="bulkErr" class="adm-err"></div>
+        <button class="icon-btn" onclick="bulkAddStudents()">&#128190; Save all</button>
+      </div>
+      <div class="adm-table-wrap"><table class="adm-table">
+        <thead><tr><th>Name</th><th>PIN</th><th></th></tr></thead>
+        <tbody id="studentsBody"><tr><td colspan="3" style="text-align:center;color:#8a8a8a;padding:16px">Pick a section on the left.</td></tr></tbody>
+      </table></div>
+      <p style="font-size:12px;color:#8a8a8a;margin-top:8px">&#128161; Give every student their <b>section code</b> + <b>personal PIN</b>. On the student app they log in with both codes, and the app shows the student's name on a confirmation screen before entering — so nobody can use someone else's profile.</p>
+    </div>
+  </div>
 </div>
 
 <!-- Main content -->
@@ -311,6 +378,28 @@ let sortCol = 'name';
 let sortAsc = true;
 let autoRefreshTimer = null;
 
+// Sections registry (loaded from Firestore; seeded with Blue/Red on first use)
+let SECTIONS = [];
+let currentSectionId = null;
+let secStudents = [];
+let _editingSecId = null;
+let _delArm = null;
+
+function secKeyOf(s) { return s.sectionId || s.section || null; }
+function secNameOf(s) {
+  const k = secKeyOf(s);
+  if (!k) return '';
+  const o = SECTIONS.find(x => x.id === k);
+  if (o) return o.name;
+  return k === 'blue' ? '7th Blue' : k === 'red' ? '7th Red' : k;
+}
+function secBadgeOf(s) {
+  const k = secKeyOf(s);
+  const idx = SECTIONS.findIndex(x => x.id === k);
+  if (idx >= 0) return idx % 2 === 0 ? 'badge-blue' : 'badge-red';
+  return k === 'red' ? 'badge-red' : 'badge-blue';
+}
+
 const SKILLS = [
   { key: 'photo-process', label: 'Photosynthesis Process' },
   { key: 'photo-inputs', label: 'What Plants Eat' },
@@ -328,7 +417,7 @@ const SKILLS = [
 
 function filtered() {
   if (currentFilter === 'all') return allStudents;
-  return allStudents.filter(s => s.section === currentFilter);
+  return allStudents.filter(s => secKeyOf(s) === currentFilter);
 }
 
 function relativeTime(dateStr) {
@@ -441,7 +530,7 @@ function render() {
     const bestExam = s.bestExamScore;
     html += `<tr class="${noExam ? 'no-exam' : ''}">
       <td style="font-weight:600">${esc(s.name) || '---'}</td>
-      <td><span class="badge ${s.section === 'blue' ? 'badge-blue' : 'badge-red'}">${s.section === 'blue' ? '7th Blue' : '7th Red'}</span></td>
+      <td><span class="badge ${secBadgeOf(s)}">${secNameOf(s) || '---'}</span></td>
       <td>${s.level ?? 0}</td>
       <td>${(s.totalXp || s.xp || 0).toLocaleString()}</td>
       <td>${s.streak ?? 0}🔥</td>
@@ -524,8 +613,6 @@ function render() {
   html += `</div>`;
 
   // Per-section weakness comparison
-  const blueStudents = accByStudent.filter(s => s.section === 'blue');
-  const redStudents = accByStudent.filter(s => s.section === 'red');
   function sectionSkillAcc(arr, key) {
     let seen = 0, correct = 0;
     for (const s of arr) {
@@ -534,17 +621,16 @@ function render() {
     }
     return seen > 0 ? Math.round(correct / seen * 100) : null;
   }
-  if (blueStudents.length && redStudents.length) {
+  const secGroups = SECTIONS.map(sec => ({ sec, arr: accByStudent.filter(s => secKeyOf(s) === sec.id) })).filter(g => g.arr.length);
+  if (secGroups.length) {
     html += `<div class="weakness-panel">
       <h3>&#9878; Section Weakness Comparison</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">`;
-    ['blue','red'].forEach(sec => {
-      const arr = sec === 'blue' ? blueStudents : redStudents;
-      const label = sec === 'blue' ? '7th Blue' : '7th Red';
-      const badgeCls = sec === 'blue' ? 'badge-blue' : 'badge-red';
-      const secSkills = SKILLS.map(sk => ({ ...sk, pct: sectionSkillAcc(arr, sk.key) })).filter(s => s.pct !== null).sort((a,b) => a.pct - b.pct);
+      <div style="display:grid;grid-template-columns:repeat(${secGroups.length},1fr);gap:16px">`;
+    secGroups.forEach((g, gi) => {
+      const badgeCls = gi % 2 === 0 ? 'badge-blue' : 'badge-red';
+      const secSkills = SKILLS.map(sk => ({ ...sk, pct: sectionSkillAcc(g.arr, sk.key) })).filter(s => s.pct !== null).sort((a,b) => a.pct - b.pct);
       html += `<div>
-        <div style="margin-bottom:10px"><span class="badge ${badgeCls}">${label}</span></div>
+        <div style="margin-bottom:10px"><span class="badge ${badgeCls}">${esc(g.sec.name)}</span></div>
         <div style="display:flex;flex-wrap:wrap;gap:4px">`;
       for (const sk of secSkills) {
         const cls = sk.pct < 40 ? 'critical' : sk.pct < 70 ? 'warning' : 'ok';
@@ -571,7 +657,7 @@ function render() {
       html += `<div class="reinforce-row" style="border-color:#f5d5d5">
         <div class="reinforce-rank" style="background:${acc<40?'var(--bad)':'var(--gold)'}">${acc.toFixed(0)}%</div>
         <div class="reinforce-info">
-          <div class="name">${esc(s.name)} <span class="badge ${s.section==='blue'?'badge-blue':'badge-red'}" style="font-size:10px">${s.section==='blue'?'Blue':'Red'}</span></div>
+          <div class="name">${esc(s.name)} <span class="badge ${secBadgeOf(s)}" style="font-size:10px">${secNameOf(s) || '—'}</span></div>
           <div class="detail">${s.answered} answered &middot; Level ${s.level || 0} &middot; Weakest: ${worstSkill ? esc(worstSkill) + ' (' + worstPct + '%)' : 'Not enough data'}</div>
         </div>
       </div>`;
@@ -581,8 +667,7 @@ function render() {
 
   // Section comparison
   html += `<div class="section-title">Section Comparison</div>`;
-  const blues = allStudents.filter(s => s.section === 'blue');
-  const reds = allStudents.filter(s => s.section === 'red');
+  const secArrays = SECTIONS.map(sec => ({ sec, arr: allStudents.filter(s => secKeyOf(s) === sec.id) })).filter(g => g.arr.length);
   function compCard(label, badgeCls, arr) {
     const accArr = arr.filter(s => s.answered > 0);
     const a = accArr.length ? accArr.reduce((sum, s) => sum + Math.round(s.correct / s.answered * 100), 0) / accArr.length : null;
@@ -605,8 +690,7 @@ function render() {
     </div>`;
   }
   html += `<div class="compare-row">
-    ${compCard('7th Blue', 'badge-blue', blues)}
-    ${compCard('7th Red', 'badge-red', reds)}
+    ${secArrays.map((g, gi) => compCard(g.sec.name, gi % 2 === 0 ? 'badge-blue' : 'badge-red', g.arr)).join('')}
   </div>`;
 
   // Intervention logs
@@ -714,12 +798,8 @@ function render() {
 
 function setFilter(section, btn) {
   currentFilter = section;
-  document.querySelectorAll('.filter-btn').forEach(b => {
-    b.classList.remove('active', 'blue-active', 'red-active');
-  });
-  if (section === 'blue') btn.classList.add('active', 'blue-active');
-  else if (section === 'red') btn.classList.add('active', 'red-active');
-  else btn.classList.add('active');
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
   render();
 }
 
@@ -760,7 +840,7 @@ function exportCSV() {
   const headers = ['Name','Section','Level','XP','Streak','Answered','Accuracy','Last Exam','Best Exam','Badges','Last Active'];
   const rows = students.map(s => [
     s.name,
-    s.section === 'blue' ? '7th Blue' : '7th Red',
+    secNameOf(s),
     s.level,
     s.totalXp || s.xp || 0,
     s.streak ?? 0,
@@ -926,8 +1006,222 @@ async function loadInterventions() {
   }
 }
 
+// ===== SECTIONS & STUDENTS MANAGEMENT =====
+function showPanel(p) {
+  const dash = document.getElementById('mainContent');
+  const admin = document.getElementById('adminPanel');
+  dash.style.display = p === 'dash' ? '' : 'none';
+  admin.style.display = p === 'admin' ? '' : 'none';
+  document.querySelectorAll('.panel-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === p));
+  if (p === 'admin') loadSections().catch(() => {});
+  else refreshData();
+}
+function renderFilterBtns() {
+  const c = document.getElementById('filterBtns');
+  if (!c) return;
+  c.innerHTML = `<button class="filter-btn${currentFilter === 'all' ? ' active' : ''}" data-section="all" onclick="setFilter('all',this)">All</button>`;
+  SECTIONS.forEach(sec => {
+    c.insertAdjacentHTML('beforeend', `<button class="filter-btn${currentFilter === sec.id ? ' active' : ''}" data-section="${escAttr(sec.id)}" onclick="setFilter('${escAttr(sec.id)}',this)">${esc(sec.name)}</button>`);
+  });
+}
+async function loadSections() {
+  if (!CONFIGURED || !db) return;
+  try {
+    let snap = await db.collection('sections').get();
+    if (snap.empty) {
+      const batch = db.batch();
+      batch.set(db.collection('sections').doc('blue'), { name: '7th Blue', code: '7BLUE', subjects: ['Science'], createdAt: new Date().toISOString() });
+      batch.set(db.collection('sections').doc('red'), { name: '7th Red', code: '7RED', subjects: ['Science'], createdAt: new Date().toISOString() });
+      await batch.commit();
+      snap = await db.collection('sections').get();
+    }
+    SECTIONS = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const stuSnap = await db.collection('students').get();
+    const counts = {};
+    stuSnap.docs.forEach(d => {
+      const sid = d.data().sectionId;
+      counts[sid] = (counts[sid] || 0) + 1;
+    });
+    SECTIONS.forEach(s => s.studentCount = counts[s.id] || 0);
+    renderFilterBtns();
+    renderSectionsList();
+    if (document.getElementById('mainContent').style.display !== 'none') render();
+    if (!currentSectionId && SECTIONS.length) selectSection(SECTIONS[0].id);
+  } catch (e) {
+    console.warn('loadSections error', e);
+    toastError('Could not load sections');
+  }
+}
+function renderSectionsList() {
+  const el = document.getElementById('sectionsList');
+  if (!el) return;
+  if (!SECTIONS.length) { el.innerHTML = '<p style="color:#8a8a8a;font-size:13px">No sections yet — create the first one.</p>'; return; }
+  el.innerHTML = SECTIONS.map(sec => `<div class="sec-card${sec.id === currentSectionId ? ' active' : ''}" data-sec="${escAttr(sec.id)}" onclick="selectSection('${escAttr(sec.id)}')">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <b>${esc(sec.name)}</b>
+      <div style="display:flex;gap:4px">
+        <button class="mini-btn" onclick="event.stopPropagation();openSecForm('${escAttr(sec.id)}')" title="Edit">✏️</button>
+        <button class="mini-btn" style="color:var(--bad)" onclick="event.stopPropagation();delSection('${escAttr(sec.id)}')" title="Delete">🗑</button>
+      </div>
+    </div>
+    <div style="font-size:12px;color:#8a8a8a;margin-top:4px">Code: <b>${esc(sec.code || '—')}</b> · ${sec.studentCount || 0} students</div>
+    <div style="margin-top:6px">${Array.isArray(sec.subjects) && sec.subjects.length ? sec.subjects.map(s => `<span class="subj-chip">${esc(s)}</span>`).join('') : '<span style="font-size:12px;color:#8a8a8a">No subjects</span>'}</div>
+  </div>`).join('');
+}
+function openSecForm(id) {
+  _editingSecId = id || null;
+  const sec = id ? SECTIONS.find(s => s.id === id) : null;
+  document.getElementById('secForm').style.display = '';
+  document.getElementById('secFormTitle').textContent = sec ? 'Edit: ' + sec.name : 'New section';
+  document.getElementById('secName').value = sec ? (sec.name || '') : '';
+  document.getElementById('secCode').value = sec ? (sec.code || '') : '';
+  document.getElementById('secSubjects').value = sec && Array.isArray(sec.subjects) ? sec.subjects.join(', ') : '';
+  document.getElementById('secFormErr').textContent = '';
+}
+function closeSecForm() { document.getElementById('secForm').style.display = 'none'; _editingSecId = null; }
+async function saveSec() {
+  const name = document.getElementById('secName').value.trim();
+  const code = document.getElementById('secCode').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const subjects = document.getElementById('secSubjects').value.split(',').map(s => s.trim()).filter(Boolean).slice(0, 12);
+  const err = document.getElementById('secFormErr');
+  err.textContent = '';
+  if (!name) { err.textContent = 'Enter a section name.'; return; }
+  if (code.length < 3) { err.textContent = 'Section code must be at least 3 characters (used by students to log in).'; return; }
+  try {
+    if (_editingSecId) await db.collection('sections').doc(_editingSecId).update({ name, code, subjects });
+    else await db.collection('sections').add({ name, code, subjects, createdAt: new Date().toISOString() });
+    closeSecForm();
+    await loadSections();
+    toast('Section saved', 'good');
+  } catch (e) { err.textContent = 'Could not save — check connection.'; }
+}
+function delSection(id) {
+  const sec = SECTIONS.find(s => s.id === id);
+  if (!sec) return;
+  if (_delArm !== id) {
+    _delArm = id;
+    toast(`Tap again to delete "${sec.name}" AND its students.`, 'warn');
+    setTimeout(() => { if (_delArm === id) _delArm = null; }, 3000);
+    return;
+  }
+  _delArm = null;
+  db.collection('students').where('sectionId', '==', id).get()
+    .then(async stuSnap => {
+      const batch = db.batch();
+      stuSnap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(db.collection('sections').doc(id));
+      await batch.commit();
+      if (currentSectionId === id) { currentSectionId = null; secStudents = []; }
+      await loadSections();
+      renderStudentsTable();
+      toast('Section deleted', 'good');
+    })
+    .catch(e => { console.warn(e); toastError('Could not delete section'); });
+}
+function selectSection(id) {
+  currentSectionId = id;
+  document.querySelectorAll('.sec-card').forEach(c => c.classList.toggle('active', c.dataset.sec === id));
+  const sec = SECTIONS.find(s => s.id === id);
+  document.getElementById('stuSectionLabel').textContent = sec ? sec.name : '—';
+  loadStudents(id).catch(e => { console.warn(e); toastError('Could not load students'); });
+}
+async function loadStudents(secId) {
+  if (!CONFIGURED || !db) { secStudents = []; renderStudentsTable(); return; }
+  if (!secId) { secStudents = []; renderStudentsTable(); return; }
+  const snap = await db.collection('students').where('sectionId', '==', secId).get();
+  secStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderStudentsTable();
+}
+function renderStudentsTable() {
+  const tb = document.getElementById('studentsBody');
+  if (!tb) return;
+  if (!secStudents.length) {
+    tb.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#8a8a8a;padding:16px">No students yet — add the first one above.</td></tr>';
+    return;
+  }
+  tb.innerHTML = secStudents.map(s => `<tr>
+    <td style="font-weight:600">${esc(s.name)}</td>
+    <td><span class="pin-chip">${esc(s.code || '—')}</span></td>
+    <td><button class="mini-btn" style="color:var(--bad)" onclick="delStudent('${escAttr(s.id)}')" title="Delete">🗑</button></td>
+  </tr>`).join('');
+}
+function delStudent(id) {
+  if (_delArm !== id) {
+    _delArm = id;
+    toast('Tap again to delete this student.', 'warn');
+    setTimeout(() => { if (_delArm === id) _delArm = null; }, 3000);
+    return;
+  }
+  _delArm = null;
+  db.collection('students').doc(id).delete()
+    .then(() => { loadStudents(currentSectionId); toast('Student deleted', 'good'); })
+    .catch(e => { console.warn(e); toastError('Could not delete student'); });
+}
+function toggleAddStudent() {
+  const f = document.getElementById('addStudentForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  document.getElementById('bulkStudentsForm').style.display = 'none';
+}
+function toggleBulkStudents() {
+  const f = document.getElementById('bulkStudentsForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  document.getElementById('addStudentForm').style.display = 'none';
+}
+function setAddErr(m) { document.getElementById('addStuErr').textContent = m; }
+function setBulkErr(m) { document.getElementById('bulkErr').textContent = m; }
+async function addStudent() {
+  if (!currentSectionId) { setAddErr('Pick a section first.'); return; }
+  const name = document.getElementById('stuName').value.trim();
+  const code = document.getElementById('stuCode').value.trim();
+  if (!name) { setAddErr("Enter the student's full name."); return; }
+  let pin = code;
+  if (pin && !/^\d{4}$/.test(pin)) { setAddErr('The PIN must be exactly 4 digits (or leave blank to auto-generate).'); return; }
+  try {
+    const used = new Set(secStudents.map(s => s.code));
+    if (!pin) { do { pin = String(Math.floor(1000 + Math.random() * 9000)); } while (used.has(pin)); }
+    else if (used.has(pin)) { setAddErr('That PIN is already used in this section — pick another or leave blank.'); return; }
+    await db.collection('students').add({ name: name.slice(0, 60), sectionId: currentSectionId, code: pin, createdAt: new Date().toISOString() });
+    document.getElementById('stuName').value = '';
+    document.getElementById('stuCode').value = '';
+    setAddErr('');
+    await loadStudents(currentSectionId);
+    toast(`Student added: ${name} — PIN ${pin}`, 'good');
+  } catch (e) { setAddErr('Could not save — check connection.'); }
+}
+async function bulkAddStudents() {
+  if (!currentSectionId) { setBulkErr('Pick a section first.'); return; }
+  const names = document.getElementById('bulkNames').value.split('\n').map(s => s.trim()).filter(Boolean).slice(0, 60);
+  if (!names.length) { setBulkErr('Write at least one name.'); return; }
+  const used = new Set(secStudents.map(s => s.code));
+  const batch = db.batch();
+  for (const n of names) {
+    let pin;
+    do { pin = String(Math.floor(1000 + Math.random() * 9000)); } while (used.has(pin));
+    used.add(pin);
+    batch.set(db.collection('students').doc(), { name: n.slice(0, 60), sectionId: currentSectionId, code: pin, createdAt: new Date().toISOString() });
+  }
+  try {
+    await batch.commit();
+    document.getElementById('bulkNames').value = '';
+    setBulkErr('');
+    await loadStudents(currentSectionId);
+    toast(`${names.length} students added`, 'good');
+  } catch (e) { setBulkErr('Could not save — check connection.'); }
+}
+function exportCodesCSV() {
+  const sec = SECTIONS.find(s => s.id === currentSectionId);
+  if (!secStudents.length) { toast('No students to export', 'warn'); return; }
+  let csv = 'Name,Section,Section Code,PIN\n';
+  csv += secStudents.map(r => [r.name, sec ? sec.name : '', sec ? sec.code : '', r.code].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (sec ? sec.name.replace(/[^\w]+/g, '_') : 'section') + '_codes.csv';
+  a.click();
+}
+
 // ===== REAL-TIME LISTENERS (Firebase) =====
-let unsubScores = null, unsubInterventions = null;
+let unsubScores = null, unsubInterventions = null, unsubSections = null;
 function startListeners() {
   if (!CONFIGURED || !db) return;
   if (unsubScores) unsubScores();
@@ -939,6 +1233,11 @@ function startListeners() {
   unsubInterventions = db.collection('interventions').onSnapshot(() => {
     if (document.getElementById('interventionBody')) loadInterventions();
   }, (err) => { console.warn('Interventions listener error', err); toastError('Live interventions feed error'); });
+
+  if (unsubSections) unsubSections();
+  unsubSections = db.collection('sections').onSnapshot(() => {
+    loadSections().catch(() => {});
+  }, (err) => { console.warn('Sections listener error', err); toastError('Sections feed error'); });
 }
 
 // Initial load
@@ -955,6 +1254,7 @@ if (!CONFIGURED) {
       toastError('Sign-in failed — check connection');
     }
     await refreshData();
+    await loadSections();
     startListeners();
   })();
 }

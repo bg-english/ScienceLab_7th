@@ -57,6 +57,13 @@ button{font-family:'Lexend';cursor:pointer}
 .tab-dd-item.active{background:var(--ink);color:#fff}
 .stats{display:flex;align-items:center;gap:10px}
 .stat{display:flex;align-items:center;gap:5px;font-weight:700;font-size:.82rem;background:var(--paper);border:2px solid var(--line);padding:5px 11px;border-radius:30px;white-space:nowrap}
+.profile-chip{display:flex;align-items:center;gap:6px;font-weight:700;font-size:.8rem;background:var(--paper);border:2px solid var(--green);color:var(--ink);padding:5px 12px;border-radius:30px;cursor:pointer;white-space:nowrap}
+.profile-chip small{font-weight:600;font-size:.62rem;color:var(--green);text-transform:uppercase;letter-spacing:.08em}
+.login-input{width:100%;padding:12px 14px;border:2px solid var(--line);border-radius:12px;font-family:'Lexend',sans-serif;font-size:.95rem;margin-bottom:10px;outline:none;box-sizing:border-box}
+.login-input:focus{border-color:var(--green)}
+.avatar-big{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--leaf));color:#fff;font-family:'Bricolage Grotesque';font-weight:800;font-size:1.9rem;display:flex;align-items:center;justify-content:center;margin:0 auto 8px;box-shadow:inset 0 -3px 0 rgba(0,0,0,.18)}
+.sub-chip{display:inline-block;background:var(--paper);border:2px solid var(--line);border-radius:20px;padding:4px 12px;font-size:.8rem;font-weight:600;margin:3px}
+.subject-chips{display:flex;flex-wrap:wrap;justify-content:center;gap:2px}
 .stat .lv{color:var(--green)}.stat .xp{color:var(--gold-dk)}.stat .st{color:var(--red)}
 @media(max-width:920px){.tabs{order:3;width:100%;justify-content:flex-start;overflow-x:auto;padding-bottom:4px}.tab{flex-shrink:0}}
 @media(max-width:520px){.stat{font-size:.72rem;padding:4px 8px}.brand .bt small{display:none}.sync-indicator{display:none}}
@@ -302,6 +309,7 @@ button{font-family:'Lexend';cursor:pointer}
       <div class="bt">SciLab<small>Boston Flex · 7th Science</small></div>
     </div>
     <nav class="tabs" id="tabs" role="tablist"></nav>
+    <button class="profile-chip hidden" id="profileChip" onclick="switchProfile()" title="Not you? Switch profile">👤 <span id="profileName">scientist</span> <small>switch</small></button>
     <div class="stats">
       <span class="stat">Lv <span class="lv" id="sLevel">1</span></span>
       <span class="stat">⚡ <span class="xp" id="sXp">0</span></span>
@@ -338,29 +346,29 @@ button{font-family:'Lexend';cursor:pointer}
 <!-- ===== VIEW: LEADERBOARD ===== -->
 <section class="view hidden" id="v-board" aria-hidden="true"></section>
 
-<!-- ===== NAME MODAL ===== -->
+<!-- ===== LOGIN MODAL ===== -->
 <div class="modal-overlay hidden" id="nameModal">
-  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Choose your name">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="Student login">
     <div style="font-size:2.6rem" id="nmImg">🌿</div>
     <h2 id="nmTitle">Welcome to SciLab!</h2>
     <p class="mc-sub">7th Grade Science · Second Term — Photosynthesis, Plant Respiration &amp; the Human Respiratory System</p>
     <div id="nmStep1">
-      <p class="mc-sub" style="margin-bottom:12px">Select your section:</p>
-      <div class="sec-btns">
-        <button class="sec-btn" onclick="pickSection('blue')">🔵 7th Blue</button>
-        <button class="sec-btn" onclick="pickSection('red')">🔴 7th Red</button>
-        <button class="sec-btn" onclick="pickSection('teacher')">🧑‍🏫 Teacher</button>
-      </div>
+      <p class="mc-sub" style="margin-bottom:10px">Log in with your personal codes. Your teacher gave you two codes: the <b>section code</b> and your <b>personal PIN</b>.</p>
+      <input id="nmSection" class="login-input" placeholder="Section code (e.g. 7BLUE)" maxlength="12" autocomplete="off" oninput="document.getElementById('nmErr').textContent=''">
+      <input id="nmCode" class="login-input" placeholder="Personal PIN (4 digits)" maxlength="4" inputmode="numeric" autocomplete="off" oninput="this.value=this.value.replace(/[^0-9]/g,'');document.getElementById('nmErr').textContent=''">
+      <div class="mc-err" id="nmErr"></div>
+      <button class="btn btn-green" style="width:100%" onclick="loginStudent()" id="nmLoginBtn">Log in →</button>
+      <p class="mc-sub" style="margin-top:12px;font-size:.8rem">Don't have codes? Ask your teacher. Codes keep your progress safe — your profile will show <b id="nmWho">your name</b> before you enter.</p>
     </div>
     <div id="nmStep2" style="display:none">
-      <p class="mc-sub" style="margin-bottom:12px">Your section: <b id="nmSecLabel"></b></p>
-      <select id="nmSelect" onchange="document.getElementById('nmErr').textContent=''">
-        <option value="">-- Choose your name --</option>
-      </select>
-      <div class="mc-err" id="nmErr"></div>
+      <div class="avatar-big" id="nmAvatar">?</div>
+      <h3 id="nmYouName" style="margin:0 0 4px">—</h3>
+      <p class="mc-sub" id="nmYouSection" style="margin-bottom:8px"></p>
+      <div id="nmYouSubjects" class="subject-chips" style="margin-bottom:10px"></div>
+      <p class="mc-sub" style="font-size:.82rem;background:#FFF8E1;border:1px solid #E9A72C;border-radius:10px;padding:8px 10px">This is the profile you are about to use. If this is <b>NOT</b> your name, stop and tell your teacher.</p>
       <div style="display:flex;gap:10px">
-        <button class="btn btn-ghost btn-sm" onclick="backToSections()">← Back</button>
-        <button class="btn btn-green" style="flex:1" onclick="submitName()">Start Exploring →</button>
+        <button class="btn btn-ghost btn-sm" onclick="backToLogin()">← Not me</button>
+        <button class="btn btn-green" style="flex:1" onclick="confirmLogin()" id="nmConfirmBtn">Yes, that's me — Enter →</button>
       </div>
     </div>
   </div>
@@ -1328,61 +1336,106 @@ async function loadBoard(sortKey){
   }
 }
 
-/* ===== ROSTER (edit with your 7th grade student lists) ===== */
-const ROSTER={
-  blue:[
-    'Student Blue 1','Student Blue 2','Student Blue 3','Student Blue 4','Student Blue 5',
-    'Student Blue 6','Student Blue 7','Student Blue 8','Student Blue 9','Student Blue 10',
-    'Student Blue 11','Student Blue 12','Student Blue 13','Student Blue 14','Student Blue 15',
-    'Student Blue 16','Student Blue 17','Student Blue 18','Student Blue 19','Student Blue 20'
-  ],
-  red:[
-    'Student Red 1','Student Red 2','Student Red 3','Student Red 4','Student Red 5',
-    'Student Red 6','Student Red 7','Student Red 8','Student Red 9','Student Red 10',
-    'Student Red 11','Student Red 12','Student Red 13','Student Red 14','Student Red 15',
-    'Student Red 16','Student Red 17','Student Red 18','Student Red 19','Student Red 20'
-  ],
-  teacher:['Edoardo Arturo Ortiz Urbina']
-};
-
-/* ===== Name management ===== */
+/* ===== Student login (section code + personal PIN) =====
+   The teacher creates sections and students in teacher.html.
+   Each student has a personal 4-digit PIN; the app shows a
+   confirmation screen with the student's full name before entering,
+   so the profile can never be someone else's by mistake. */
 let playerName=Store.get('sl_player_name',null);
-function firstName(){return playerName?(playerName.split(' ')[0]):'scientist';}
 let playerSection=Store.get('sl_player_section',null);
+let playerSectionName=Store.get('sl_player_section_name',null);
+let playerSubjects=Store.get('sl_player_subjects',null);
+try{playerSubjects=playerSubjects&&Array.isArray(playerSubjects)?playerSubjects:[];}catch(e){playerSubjects=[];}
+let playerStudentId=Store.get('sl_player_student_id',null);
+function firstName(){return playerName?(playerName.split(' ')[0]):'scientist';}
 function showNameModal(){
   const modal=document.getElementById('nameModal');
   modal.classList.remove('hidden');
   document.getElementById('nmStep1').style.display='';
   document.getElementById('nmStep2').style.display='none';
-}
-function pickSection(sec){
-  playerSection=sec;
-  Store.set('sl_player_section',sec);
-  document.getElementById('nmStep1').style.display='none';
-  document.getElementById('nmStep2').style.display='';
-  document.getElementById('nmSecLabel').textContent=sec==='teacher'?'Teacher':('7th '+(sec==='blue'?'Blue':'Red'));
-  const sel=document.getElementById('nmSelect');
-  sel.innerHTML='<option value="">-- Choose your name --</option>';
-  ROSTER[sec].forEach(n=>{const o=document.createElement('option');o.value=n;o.textContent=n;sel.appendChild(o);});
-}
-function backToSections(){
-  document.getElementById('nmStep1').style.display='';
-  document.getElementById('nmStep2').style.display='none';
   document.getElementById('nmErr').textContent='';
+  setTimeout(function(){const i=document.getElementById('nmSection');if(i)i.focus();},100);
 }
-function submitName(){
-  const sel=document.getElementById('nmSelect');
-  const name=sel.value;
-  if(!name){document.getElementById('nmErr').textContent='Please select your name.';return;}
-  playerName=name;
+function renderProfileChip(){
+  const chip=document.getElementById('profileChip');
+  if(!chip)return;
+  if(playerName){chip.classList.remove('hidden');document.getElementById('profileName').textContent=firstName();}
+  else chip.classList.add('hidden');
+}
+let _pendingProfile=null;
+async function loginStudent(){
+  const section=document.getElementById('nmSection').value.trim().toUpperCase();
+  const code=document.getElementById('nmCode').value.trim();
+  const err=document.getElementById('nmErr');
+  err.textContent='';
+  if(!section||!code){err.textContent='Enter your section code and personal PIN.';return;}
+  if(!/^\d{4}$/.test(code)){err.textContent='Your PIN must be exactly 4 digits.';return;}
+  if(!FB_CONFIGURED||typeof firebase==='undefined'||!firebase.functions){
+    err.textContent='Login needs the internet — check your connection.';
+    return;
+  }
+  const btn=document.getElementById('nmLoginBtn');
+  btn.disabled=true;btn.textContent='Checking…';
+  try{
+    const fn=firebase.functions(firebaseApp).httpsCallable('studentLogin');
+    const res=await fn({sectionCode:section,code:code});
+    const d=res.data||{};
+    if(!d.ok){err.textContent=d.error||'Login failed. Check your codes.';return;}
+    _pendingProfile=d;
+    document.getElementById('nmStep1').style.display='none';
+    document.getElementById('nmStep2').style.display='';
+    document.getElementById('nmYouName').textContent=d.name;
+    document.getElementById('nmAvatar').textContent=(d.name||'?').charAt(0).toUpperCase();
+    document.getElementById('nmYouSection').textContent='Section: '+d.sectionName+(d.sectionCode?' · Code: '+d.sectionCode:'');
+    const chips=document.getElementById('nmYouSubjects');
+    chips.innerHTML=(d.subjects&&d.subjects.length)
+      ? d.subjects.map(function(s){return '<span class="sub-chip">'+esc(s)+'</span>';}).join('')
+      : '<span class="mc-sub" style="font-size:.8rem">Subjects: —</span>';
+  }catch(e){
+    console.warn('studentLogin error',e);
+    err.textContent=(e&&e.message&&String(e.message).indexOf('internet')<0)?'Login failed — check your codes and try again.':'Login failed — check your connection.';
+    toastError('Login failed');
+  }finally{
+    btn.disabled=false;btn.textContent='Log in →';
+  }
+}
+function backToLogin(){
+  document.getElementById('nmStep2').style.display='none';
+  document.getElementById('nmStep1').style.display='';
+  document.getElementById('nmErr').textContent='';
+  _pendingProfile=null;
+}
+function confirmLogin(){
+  const p=_pendingProfile;
+  if(!p)return;
+  playerName=p.name;
+  playerSection=p.sectionId;
+  playerSectionName=p.sectionName;
+  playerSubjects=p.subjects||[];
+  playerStudentId=p.studentId||null;
   Store.set('sl_player_name',playerName);
+  Store.set('sl_player_section',playerSection);
+  Store.set('sl_player_section_name',playerSectionName);
+  Store.set('sl_player_subjects',playerSubjects);
+  Store.set('sl_player_student_id',playerStudentId);
   document.getElementById('nameModal').classList.add('hidden');
+  renderProfileChip();
   ensureAuth().then(function(){
     syncToFirestore();
     renderHUD();
     renderDash();
     toast('Welcome, '+firstName()+'! 🌿','good');
   });
+}
+function switchProfile(){
+  playerName=null;playerSection=null;playerSectionName=null;playerSubjects=[];playerStudentId=null;
+  Store.set('sl_player_name',null);
+  Store.set('sl_player_section',null);
+  Store.set('sl_player_section_name',null);
+  Store.set('sl_player_subjects',null);
+  Store.set('sl_player_student_id',null);
+  renderProfileChip();
+  showNameModal();
 }
 
 /* ===== Firebase sync ===== */
@@ -1391,7 +1444,11 @@ function buildSyncBody(){
   return {
     uid:myUid,
     name:playerName,
+    studentId:playerStudentId||null,
+    studentName:playerName,
     section:playerSection||null,
+    sectionId:playerSection||null,
+    sectionName:playerSectionName||null,
     xp:state.xp,
     totalXp:state.totalXp,
     level:state.level,
@@ -1493,6 +1550,7 @@ if(nm&&!nm.classList.contains('hidden'))setTimeout(function(){trapFocus(nm);},10
 
 /* ===== INIT ===== */
 function init(){
+  renderProfileChip();
   renderHUD();
   renderDash();
   renderLearn();

@@ -25,6 +25,18 @@ service cloud.firestore {
       allow write: if isTeacher();
     }
 
+    // Sections registry: teacher-only. Students look themselves up
+    // through the studentLogin callable function (server-side), so they
+    // never need direct access to this collection.
+    match /sections/{id} {
+      allow read, write: if isTeacher();
+    }
+
+    // Students registry: teacher-only (names + access PINs).
+    match /students/{id} {
+      allow read, write: if isTeacher();
+    }
+
     // Student scores: leaderboard list is shared; writes are own doc only
     match /scores/{docId} {
       allow get: if isTeacher() || isOwner(resource);

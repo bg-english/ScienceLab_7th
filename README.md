@@ -44,6 +44,13 @@ for Science and for a younger audience.
 - **Final exam** with best-score tracking
 - **Teacher dashboard** — live real-time tracking, skill heatmap, weakness analysis,
   section comparison, notices with read receipts, intervention (AI help) logs, CSV export
+- **Sections & Students (teacher)** — create sections, assign subjects and manage the
+  student roster with personal login codes; export codes as CSV to hand out in class
+- **Secure student login** — each student logs in with their **section code + personal
+  PIN** (looked up server-side by a Cloud Function). The app shows the student's full
+  name, section and subjects on a confirmation screen before entering, so a student can
+  never end up in someone else's profile by mistake. A "switch profile" chip in the
+  header lets students change profiles on shared devices.
 
 ---
 
@@ -105,6 +112,9 @@ The site is hosted on GitHub Pages: **https://bg-english.github.io/ScienceLab_7t
   their uid). They cannot see or modify other students' data.
 - Only the teacher (document in `admins`) can read the whole class, post notices,
   and read AI-help logs.
+- The `sections` and `students` registries are **teacher-only**. Students look
+  themselves up through the `studentLogin` Cloud Function, which runs server-side
+  and never exposes the registries to the app.
 - The Groq key lives only in Google Secret Manager — never in the client.
 - All database/user data is HTML-escaped before rendering (no stored XSS).
 

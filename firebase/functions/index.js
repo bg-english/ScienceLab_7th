@@ -18,6 +18,10 @@
 const functions = require('firebase-functions');
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
+const admin = require('firebase-admin');
+
+if (!admin.apps.length) admin.initializeApp();
+const db = admin.firestore();
 
 const GROQ_API_KEY = defineSecret('GROQ_API_KEY');
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
@@ -211,4 +215,38 @@ JSON object. No markdown, no extra text.`;
     .slice(0, count);
 
   return { exercises };
+});
+
+// ---------- Student login (section code + personal PIN) ----------
+// The registry lives in /sections and /students, which are teacher-only.
+// Students authenticate by code so the app can never show the wrong profile.
+exports.studentLogin = onCall({}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const data = request.data || {};
+  const sectionCode = String(data.sectionCode || '').trim().toUpperCase().slice(0, 12);
+  const code = String(data.code || '').trim().toUpperCase().slice(0, 12);
+  if (!sectionCode) throw new HttpsError('invalid-argument', 'Enter your section code.');
+  if (!/^\d{4}$/.test(code)) throw new HttpsError('invalid-argument', 'Your personal code must be 4 digits.');
+
+  const secSnap = await db.collection('sections').where('code', '==', sectionCode).limit(1).get();
+  if (secSnap.empty) return { ok: false, error: 'Section not found. Check the section code with your teacher.' };
+  const sec = secSnap.docs[0];
+
+  const stuSnap = await db.collection('students')
+    .where('sectionId', '==', sec.id)
+    .where('code', '==', code)
+    .limit(1)
+    .get();
+  if (stuSnap.empty) return { ok: false, error: 'That code does not match any student in this section.' };
+
+  const stu = stuSnap.docs[0].data();
+  return {
+    ok: true,
+    studentId: stuSnap.docs[0].id,
+    name: String(stu.name || '').slice(0, 60),
+    sectionId: sec.id,
+    sectionName: String(sec.data().name || '').slice(0, 60),
+    sectionCode: String(sec.data().code || sectionCode),
+    subjects: Array.isArray(sec.data().subjects) ? sec.data().subjects.map(String).slice(0, 12) : [],
+  };
 });

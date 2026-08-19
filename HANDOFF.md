@@ -50,6 +50,27 @@ Temario: Fotosíntesis (Lev 26:4-6), Respiración vegetal (Gen 9:3) y Sistema re
 5. **UID de `admins` debe coincidir con la sesión anónima del navegador** que abre `teacher.html` (obtener con `auth.currentUser.uid` en la consola; la sesión se guarda en localStorage del navegador, una por navegador/dispositivo).
 6. **Groq**: el secreto `GROQ_API_KEY` se liga a las funciones solo con `defineSecret()` de `firebase-functions/params` (el patrón viejo `process.env` no se liga). Al actualizar la clave, la CLI pregunta si re-desplegar: responder **yes**.
 
+### Sesión 2026-08-19 (v2.2.0 — secciones, alumnos y login seguro por códigos)
+
+1. **Panel "Sections & Students" en teacher.html**: el profesor crea secciones
+   (nombre + código de sección para el login + materias), agrega alumnos uno a uno
+   o en lote (textarea, PINs auto-generados de 4 dígitos, únicos por sección),
+   exporta CSV con los códigos para repartirlos, borra alumnos/secciones con
+   confirmación de doble tap. Blue/Red se siembran solos la primera vez (ids
+   `blue`/`red`) para que los datos del leaderboard existentes sigan funcionando.
+2. **Login del alumno por códigos (index.html)**: ya no se elige nombre de una
+   lista (cualquiera podía tomar cualquier perfil). El alumno entra con **código de
+   sección + PIN personal**; la CF `studentLogin` (server-side) valida y devuelve
+   el perfil; la app muestra una pantalla de confirmación "This is you? — Nombre ·
+   Sección · Materias" antes de entrar. Chip `👤 Nombre · switch` en el header para
+   cambiar de perfil en dispositivos compartidos.
+3. **Reglas**: `sections` y `students` son de solo-lectura/escritura del teacher;
+   los alumnos NO pueden leer esas colecciones (el login pasa por la CF).
+4. **Live-tested**: CF `studentLogin` (códigos válidos, PIN equivocado, sección
+   desconocida) + denegación de lectura anónima de `students`/`sections`. Tests
+   jsdom: `test_login.js` (16/16) y `test_teacher_panel.js` (28/28).
+5. `scores` ahora incluye `studentId`/`sectionId`/`sectionName`/`studentName`.
+
 ### Sesión 2026-08-19 (auditoría profunda + toasts de error)
 
 1. **Toasts de error en ambas apps** (`index.html` y `teacher.html`): cada error muestra un toast con su tipo (`⚠️`). Cobertura: JS global (`onerror` + `unhandledrejection`), sync/offline, leaderboard, tutor IA, avisos, recibos de lectura, logs de intervención y login. Throttle de 8s para no spamear. CSS del toast agregado a `teacher.html` (antes no tenía).
@@ -95,9 +116,16 @@ La clave de Groq se guarda en Google Secret Manager, nunca en el código.
 
 ## 5. Notas técnicas importantes
 
-- **Roster de estudiantes:** en `index.html` hay un objeto `ROSTER` con nombres de ejemplo (`Student Blue 1`...). Reemplazar por la lista real de 7º Blue/Red antes de usarlo en clase.
+- **Registro de alumnos y secciones (v2.2.0):** ya NO se edita el objeto `ROSTER`
+  en el código. El profesor gestiona secciones + alumnos desde
+  `teacher.html` → pestaña **Sections & Students**, y reparte a cada alumno su
+  código de sección + PIN personal (exportar CSV de códigos con el botón
+  "Codes CSV"). El login del alumno valida por Cloud Function y muestra una
+  pantalla de confirmación de identidad antes de entrar.
 - **Estructura de datos en Firestore:**
   - `scores/{uid}` — estado completo de cada estudiante (una fila por alumno).
+  - `sections/{id}` — secciones (nombre, código de sección, materias). Solo teacher.
+  - `students/{id}` — alumnos (nombre, sección, PIN personal). Solo teacher.
   - `interventions/{auto}` — logs de ayuda IA.
   - `notices/{auto}` — mensajes del profesor.
   - `notice_reads/{auto}` — recibos de lectura.
