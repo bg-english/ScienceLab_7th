@@ -2,6 +2,18 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.2.1] — 2026-08-19
+
+### Added
+- **Student contact details** in the Students panel: student email, and for up to
+  two parents/guardians their full names, phones and emails (all optional). All
+  values are editable per student (new ✏️ edit button), shown in the students
+  table, and included in the Codes CSV export.
+
+### Fixed
+- `addStudent` crashed with `ReferenceError: _editingStuId` (used before
+  declaration) — the save button appeared to fail.
+
 ## [2.2.0] — 2026-08-19
 
 ### Added

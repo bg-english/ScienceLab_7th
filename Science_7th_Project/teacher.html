@@ -291,11 +291,25 @@ td { padding: 9px 12px; white-space: nowrap; }
         </div>
       </div>
       <div id="addStudentForm" style="display:none;margin-bottom:10px;padding:12px;border:2px dashed var(--line);border-radius:12px">
-        <div style="font-weight:700;margin-bottom:8px">Add a student</div>
+        <div style="font-weight:700;margin-bottom:8px" id="stuFormTitle">Add a student</div>
         <input id="stuName" class="adm-input" placeholder="Full name">
+        <input id="stuEmail" class="adm-input" placeholder="Student email (optional)" type="email">
         <input id="stuCode" class="adm-input" placeholder="Personal PIN (4 digits) — blank = auto" maxlength="4" inputmode="numeric">
+        <div style="font-weight:700;font-size:12px;color:#8a8a8a;margin:6px 0 8px">Parents / guardians (optional)</div>
+        <input id="stuP1Name" class="adm-input" placeholder="Parent 1 — full name">
+        <input id="stuP1Phone" class="adm-input" placeholder="Parent 1 — phone" inputmode="tel">
+        <input id="stuP1Email" class="adm-input" placeholder="Parent 1 — email" type="email">
+        <div id="parent2Row" style="display:none">
+          <input id="stuP2Name" class="adm-input" placeholder="Parent 2 — full name">
+          <input id="stuP2Phone" class="adm-input" placeholder="Parent 2 — phone" inputmode="tel">
+          <input id="stuP2Email" class="adm-input" placeholder="Parent 2 — email" type="email">
+        </div>
+        <button class="mini-btn" onclick="toggleParent2()" id="p2Toggle" type="button">＋ Add second parent</button>
         <div id="addStuErr" class="adm-err"></div>
-        <button class="icon-btn" onclick="addStudent()">&#128190; Save student</button>
+        <div style="display:flex;gap:8px">
+          <button class="icon-btn" onclick="addStudent()" id="stuSaveBtn">&#128190; Save student</button>
+          <button class="icon-btn" onclick="toggleAddStudent()" id="stuCancelBtn" style="display:none">Cancel</button>
+        </div>
       </div>
       <div id="bulkStudentsForm" style="display:none;margin-bottom:10px;padding:12px;border:2px dashed var(--line);border-radius:12px">
         <div style="font-weight:700;margin-bottom:8px">Bulk add — one name per line (PINs auto-generated)</div>
@@ -304,10 +318,10 @@ td { padding: 9px 12px; white-space: nowrap; }
         <button class="icon-btn" onclick="bulkAddStudents()">&#128190; Save all</button>
       </div>
       <div class="adm-table-wrap"><table class="adm-table">
-        <thead><tr><th>Name</th><th>PIN</th><th></th></tr></thead>
-        <tbody id="studentsBody"><tr><td colspan="3" style="text-align:center;color:#8a8a8a;padding:16px">Pick a section on the left.</td></tr></tbody>
+        <thead><tr><th>Name</th><th>Email</th><th>Parents</th><th>PIN</th><th></th></tr></thead>
+        <tbody id="studentsBody"><tr><td colspan="5" style="text-align:center;color:#8a8a8a;padding:16px">Pick a section on the left.</td></tr></tbody>
       </table></div>
-      <p style="font-size:12px;color:#8a8a8a;margin-top:8px">&#128161; Give every student their <b>section code</b> + <b>personal PIN</b>. On the student app they log in with both codes, and the app shows the student's name on a confirmation screen before entering — so nobody can use someone else's profile.</p>
+      <p style="font-size:12px;color:#8a8a8a;margin-top:8px">&#128161; Give every student their <b>section code</b> + <b>personal PIN</b>. On the student app they log in with both codes, and the app shows the student's name on a confirmation screen before entering — so nobody can use someone else's profile. Student email and parent contacts are saved here and in the CSV export.</p>
     </div>
   </div>
 </div>
@@ -383,6 +397,7 @@ let SECTIONS = [];
 let currentSectionId = null;
 let secStudents = [];
 let _editingSecId = null;
+let _editingStuId = null;
 let _delArm = null;
 
 function secKeyOf(s) { return s.sectionId || s.section || null; }
@@ -1132,17 +1147,33 @@ async function loadStudents(secId) {
   secStudents = snap.docs.map(d => ({ id: d.id, ...d.data() }));
   renderStudentsTable();
 }
+function parentsHtml(s) {
+  const ps = Array.isArray(s.parents) ? s.parents : [];
+  if (!ps.length) return '<span style="color:#bbb">—</span>';
+  return ps.map(p => {
+    const bits = [];
+    if (p.name) bits.push(esc(p.name));
+    if (p.phone) bits.push('📞 ' + esc(p.phone));
+    if (p.email) bits.push('✉️ ' + esc(p.email));
+    return bits.join(' · ');
+  }).join('<br>');
+}
 function renderStudentsTable() {
   const tb = document.getElementById('studentsBody');
   if (!tb) return;
   if (!secStudents.length) {
-    tb.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#8a8a8a;padding:16px">No students yet — add the first one above.</td></tr>';
+    tb.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#8a8a8a;padding:16px">No students yet — add the first one above.</td></tr>';
     return;
   }
   tb.innerHTML = secStudents.map(s => `<tr>
     <td style="font-weight:600">${esc(s.name)}</td>
+    <td style="font-size:12px">${esc(s.email || '—')}</td>
+    <td style="font-size:12px">${parentsHtml(s)}</td>
     <td><span class="pin-chip">${esc(s.code || '—')}</span></td>
-    <td><button class="mini-btn" style="color:var(--bad)" onclick="delStudent('${escAttr(s.id)}')" title="Delete">🗑</button></td>
+    <td style="white-space:nowrap">
+      <button class="mini-btn" onclick="editStudent('${escAttr(s.id)}')" title="Edit">✏️</button>
+      <button class="mini-btn" style="color:var(--bad)" onclick="delStudent('${escAttr(s.id)}')" title="Delete">🗑</button>
+    </td>
   </tr>`).join('');
 }
 function delStudent(id) {
@@ -1159,33 +1190,100 @@ function delStudent(id) {
 }
 function toggleAddStudent() {
   const f = document.getElementById('addStudentForm');
-  f.style.display = f.style.display === 'none' ? '' : 'none';
+  if (f.style.display === 'none') {
+    closeStudentForm();
+    f.style.display = '';
+    document.getElementById('bulkStudentsForm').style.display = 'none';
+  } else f.style.display = 'none';
+}
+function closeStudentForm() {
+  _editingStuId = null;
+  document.getElementById('stuFormTitle').textContent = 'Add a student';
+  document.getElementById('stuSaveBtn').textContent = '💾 Save student';
+  document.getElementById('stuCancelBtn').style.display = 'none';
+  document.getElementById('stuName').value = '';
+  document.getElementById('stuEmail').value = '';
+  document.getElementById('stuCode').value = '';
+  document.getElementById('stuP1Name').value = '';
+  document.getElementById('stuP1Phone').value = '';
+  document.getElementById('stuP1Email').value = '';
+  document.getElementById('stuP2Name').value = '';
+  document.getElementById('stuP2Phone').value = '';
+  document.getElementById('stuP2Email').value = '';
+  document.getElementById('parent2Row').style.display = 'none';
+  document.getElementById('p2Toggle').textContent = '＋ Add second parent';
+  setAddErr('');
+}
+function toggleParent2() {
+  const r = document.getElementById('parent2Row');
+  r.style.display = r.style.display === 'none' ? '' : 'none';
+  document.getElementById('p2Toggle').textContent = r.style.display === 'none' ? '＋ Add second parent' : '− Remove second parent';
+}
+function editStudent(id) {
+  const s = secStudents.find(x => x.id === id);
+  if (!s) return;
+  _editingStuId = id;
+  const ps = Array.isArray(s.parents) ? s.parents : [];
+  const p1 = ps[0] || {}, p2 = ps[1] || {};
+  document.getElementById('stuFormTitle').textContent = 'Edit: ' + s.name;
+  document.getElementById('stuSaveBtn').textContent = '💾 Save changes';
+  document.getElementById('stuCancelBtn').style.display = '';
+  document.getElementById('stuName').value = s.name || '';
+  document.getElementById('stuEmail').value = s.email || '';
+  document.getElementById('stuCode').value = s.code || '';
+  document.getElementById('stuP1Name').value = p1.name || '';
+  document.getElementById('stuP1Phone').value = p1.phone || '';
+  document.getElementById('stuP1Email').value = p1.email || '';
+  document.getElementById('stuP2Name').value = p2.name || '';
+  document.getElementById('stuP2Phone').value = p2.phone || '';
+  document.getElementById('stuP2Email').value = p2.email || '';
+  document.getElementById('parent2Row').style.display = ps.length > 1 ? '' : 'none';
+  document.getElementById('p2Toggle').textContent = ps.length > 1 ? '− Remove second parent' : '＋ Add second parent';
+  document.getElementById('addStudentForm').style.display = '';
   document.getElementById('bulkStudentsForm').style.display = 'none';
+  setAddErr('');
 }
 function toggleBulkStudents() {
   const f = document.getElementById('bulkStudentsForm');
-  f.style.display = f.style.display === 'none' ? '' : 'none';
-  document.getElementById('addStudentForm').style.display = 'none';
+  if (f.style.display === 'none') {
+    f.style.display = '';
+    document.getElementById('addStudentForm').style.display = 'none';
+  } else f.style.display = 'none';
 }
 function setAddErr(m) { document.getElementById('addStuErr').textContent = m; }
 function setBulkErr(m) { document.getElementById('bulkErr').textContent = m; }
 async function addStudent() {
   if (!currentSectionId) { setAddErr('Pick a section first.'); return; }
   const name = document.getElementById('stuName').value.trim();
+  const email = document.getElementById('stuEmail').value.trim();
   const code = document.getElementById('stuCode').value.trim();
   if (!name) { setAddErr("Enter the student's full name."); return; }
   let pin = code;
   if (pin && !/^\d{4}$/.test(pin)) { setAddErr('The PIN must be exactly 4 digits (or leave blank to auto-generate).'); return; }
+  const parents = [];
+  for (const px of [['stuP1Name', 'stuP1Phone', 'stuP1Email'], ['stuP2Name', 'stuP2Phone', 'stuP2Email']]) {
+    const p = {
+      name: document.getElementById(px[0]).value.trim(),
+      phone: document.getElementById(px[1]).value.trim(),
+      email: document.getElementById(px[2]).value.trim(),
+    };
+    if (p.name || p.phone || p.email) parents.push(p);
+  }
   try {
-    const used = new Set(secStudents.map(s => s.code));
+    const used = new Set(secStudents.filter(s => s.id !== _editingStuId).map(s => s.code));
     if (!pin) { do { pin = String(Math.floor(1000 + Math.random() * 9000)); } while (used.has(pin)); }
     else if (used.has(pin)) { setAddErr('That PIN is already used in this section — pick another or leave blank.'); return; }
-    await db.collection('students').add({ name: name.slice(0, 60), sectionId: currentSectionId, code: pin, createdAt: new Date().toISOString() });
-    document.getElementById('stuName').value = '';
-    document.getElementById('stuCode').value = '';
-    setAddErr('');
+    const body = { name: name.slice(0, 60), email: email.slice(0, 120) || null, parents, code: pin };
+    if (_editingStuId) {
+      await db.collection('students').doc(_editingStuId).update(body);
+      toast('Student updated', 'good');
+    } else {
+      await db.collection('students').add({ ...body, sectionId: currentSectionId, createdAt: new Date().toISOString() });
+      toast(`Student added: ${name} — PIN ${pin}`, 'good');
+    }
+    closeStudentForm();
+    document.getElementById('addStudentForm').style.display = 'none';
     await loadStudents(currentSectionId);
-    toast(`Student added: ${name} — PIN ${pin}`, 'good');
   } catch (e) { setAddErr('Could not save — check connection.'); }
 }
 async function bulkAddStudents() {
@@ -1211,8 +1309,15 @@ async function bulkAddStudents() {
 function exportCodesCSV() {
   const sec = SECTIONS.find(s => s.id === currentSectionId);
   if (!secStudents.length) { toast('No students to export', 'warn'); return; }
-  let csv = 'Name,Section,Section Code,PIN\n';
-  csv += secStudents.map(r => [r.name, sec ? sec.name : '', sec ? sec.code : '', r.code].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',')).join('\n');
+  let csv = 'Name,Section,Section Code,PIN,Student Email,Parent 1 Name,Parent 1 Phone,Parent 1 Email,Parent 2 Name,Parent 2 Phone,Parent 2 Email\n';
+  csv += secStudents.map(r => {
+    const ps = Array.isArray(r.parents) ? r.parents : [];
+    const p1 = ps[0] || {}, p2 = ps[1] || {};
+    return [r.name, sec ? sec.name : '', sec ? sec.code : '', r.code, r.email || '',
+      p1.name || '', p1.phone || '', p1.email || '',
+      p2.name || '', p2.phone || '', p2.email || '']
+      .map(v => '"' + String(v).replace(/"/g, '""') + '"').join(',');
+  }).join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
