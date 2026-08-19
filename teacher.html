@@ -909,7 +909,16 @@ initFirebase();
 if (!CONFIGURED) {
   refreshData();
 } else {
-  refreshData().then(startListeners);
+  (async () => {
+    try {
+      await auth.signInAnonymously();
+      console.log('Teacher signed in anonymously');
+    } catch (e) {
+      console.warn('Anonymous sign-in failed', e);
+    }
+    await refreshData();
+    startListeners();
+  })();
 }
 setInterval(refreshData, 60000);</body>
 </html>
