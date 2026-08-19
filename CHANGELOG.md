@@ -2,6 +2,19 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.1.4] — 2026-08-19
+
+### Fixed
+- **Answering questions threw "The token provided must not be empty"** (reported
+  from class): in practice and in the exam, the feedback loop added `''` to
+  `classList` for options that were neither correct nor selected, and
+  `classList.add('')` throws a `SyntaxError` — aborting `submitAnswer` before
+  showing feedback and before recording the answer/XP (it existed since the
+  initial release). Now only `correct`/`wrong` classes are added when they
+  apply. Verified end-to-end in a headless DOM: correct and wrong answers
+  advance the round, update state, XP and Smart Review, in both practice and
+  exam.
+
 ## [2.1.3] — 2026-08-19
 
 ### Fixed

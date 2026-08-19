@@ -899,7 +899,7 @@ function submitAnswer(optIdx){
   const isCorrect = correct;
   const fbEl=document.getElementById('eqFb');
   if(it.type!=='fill'){
-    document.querySelectorAll('.eq-opt').forEach((b,i)=>{b.disabled=true;b.classList.add(i===it.a?'correct':(i===optIdx?'wrong':''));});
+    document.querySelectorAll('.eq-opt').forEach((b,i)=>{b.disabled=true;if(i===it.a)b.classList.add('correct');else if(i===optIdx)b.classList.add('wrong');});
   }
   let fbHtml = isCorrect
     ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+(it.fb||'')+'</div>'
@@ -1264,7 +1264,7 @@ function renderExamQ(){
 }
 function examAnswer(j){
   const it=examQueue[examIdx];
-  document.querySelectorAll('.exam-q .eq-opt').forEach((b,i)=>{b.disabled=true;b.classList.add(i===it.a?'correct':(i===j?'wrong':''));});
+  document.querySelectorAll('.exam-q .eq-opt').forEach((b,i)=>{b.disabled=true;if(i===it.a)b.classList.add('correct');else if(i===j)b.classList.add('wrong');});
   if(j===it.a)examScore++;
   const e=document.getElementById('v-exam');
   const fb=document.createElement('div');fb.className='eq-fb '+(j===it.a?'ok':'no');fb.style.marginTop='14px';fb.innerHTML=(j===it.a?'✅ Correct! ':'❌ ')+it.fb;
