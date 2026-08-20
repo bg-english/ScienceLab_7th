@@ -227,6 +227,7 @@ td { padding: 9px 12px; white-space: nowrap; }
   <div class="panel-btns">
     <button class="panel-btn active" data-panel="dash" onclick="showPanel('dash')">&#128202; Dashboard</button>
     <button class="panel-btn" data-panel="admin" onclick="showPanel('admin')">&#128451; Sections &amp; Students</button>
+    <button class="panel-btn" data-panel="write" onclick="showPanel('write')">&#9997;&#65039; Writing</button>
     <button class="panel-btn" data-panel="diag" onclick="showPanel('diag')">&#128737; Diagnostics</button>
   </div>
   <div class="filter-btns" id="filterBtns"></div>
@@ -325,6 +326,20 @@ td { padding: 9px 12px; white-space: nowrap; }
       <p style="font-size:12px;color:#8a8a8a;margin-top:8px">&#128161; Give every student their <b>section code</b> + <b>personal PIN</b>. On the student app they log in with both codes, and the app shows the student's name on a confirmation screen before entering — so nobody can use someone else's profile. Student email and parent contacts are saved here and in the CSV export.</p>
     </div>
   </div>
+</div>
+
+<!-- Writing submissions: rubric grading -->
+<div id="writePanel" style="display:none;padding:20px 24px;max-width:1000px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+    <h3 style="margin:0">&#9997;&#65039; Writing Submissions — Rubric</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="writeFilter" onchange="loadWritings()" style="font-family:'Lexend';font-size:13px;padding:6px 10px;border-radius:10px;border:2px solid var(--line);background:var(--paper)">
+        <option value="">All</option><option value="ungraded">Ungraded</option><option value="graded">Graded</option>
+      </select>
+      <button class="icon-btn" onclick="loadWritings()">&#x21bb; Refresh</button>
+    </div>
+  </div>
+  <div id="writingsList"></div>
 </div>
 
 <!-- Diagnostics: system logs report -->
@@ -1106,14 +1121,79 @@ async function loadInterventions() {
 function showPanel(p) {
   const dash = document.getElementById('mainContent');
   const admin = document.getElementById('adminPanel');
+  const write = document.getElementById('writePanel');
   const diag = document.getElementById('diagPanel');
   dash.style.display = p === 'dash' ? '' : 'none';
   admin.style.display = p === 'admin' ? '' : 'none';
+  if (write) write.style.display = p === 'write' ? '' : 'none';
   if (diag) diag.style.display = p === 'diag' ? '' : 'none';
   document.querySelectorAll('.panel-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === p));
   if (p === 'admin') loadSections().catch(() => {});
+  else if (p === 'write') loadWritings();
   else if (p === 'diag') loadDiagnostics();
   else refreshData();
+}
+
+// ===== WRITING SUBMISSIONS (rubric grading) =====
+const WRITE_CRIT = [
+  ['message','Message & Content'],
+  ['vocab','Science Vocabulary'],
+  ['structure','Grammar & Structure'],
+  ['organize','Organization & Connectors']
+];
+let _writings = [];
+async function loadWritings() {
+  const list = document.getElementById('writingsList');
+  if (!CONFIGURED || !db) { if (list) list.innerHTML = '<p>Firebase not configured yet.</p>'; return; }
+  list.innerHTML = '<div class="loading-overlay"><div class="spinner"></div>Loading submissions…</div>';
+  try {
+    const snap = await db.collection('writings').orderBy('createdAt', 'desc').limit(200).get();
+    let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const f = document.getElementById('writeFilter').value;
+    if (f === 'ungraded') rows = rows.filter(r => !r.teacherGrade);
+    if (f === 'graded') rows = rows.filter(r => r.teacherGrade);
+    _writings = rows;
+    renderWritings(rows);
+  } catch (e) {
+    Logger.push('error','admin','loadWritings:failed',null,null,{code:e&&e.code,message:e&&e.message},null);
+    list.innerHTML = `<p style="color:var(--bad)">Could not load writing: ${esc(fbErrHint(e))}</p>`;
+  }
+}
+function renderWritings(rows) {
+  const list = document.getElementById('writingsList');
+  if (!rows.length) { list.innerHTML = '<p style="color:#8a8a8a;padding:12px">No submissions match this filter.</p>'; return; }
+  list.innerHTML = rows.map(w => {
+    const selfHtml = w.self ? WRITE_CRIT.map(([k, l]) => {
+      const v = w.self[k];
+      return '<div style="font-size:.8rem"><b>' + esc(l) + ':</b> ' + (v != null ? (['🌟','⭐','✨'][v] || v) : '—') + '</div>';
+    }).join('') : '<span style="font-size:.8rem;color:#bbb">No self-assessment</span>';
+    const gradeHtml = WRITE_CRIT.map(([k, l]) => {
+      const v = (w.teacherGrade && w.teacherGrade[k]) != null ? w.teacherGrade[k] : 1;
+      return '<label style="font-size:.78rem;white-space:nowrap">' + esc(l) + ' <select data-k="' + k + '" data-w="' + w.id + '" class="tgrade">' + [1,2,3].map(n => '<option value="' + n + '"' + (n === v ? ' selected' : '') + '>' + ['1','2','3'][n-1] + '</option>').join('') + '</select></label>';
+    }).join(' ');
+    const graded = w.teacherGrade ? '<span class="badge badge-blue" style="font-size:10px">Graded</span>' : '<span class="badge" style="background:var(--soft);color:var(--gold-dk);font-size:10px">Pending</span>';
+    return '<div class="write-card" style="background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:16px;margin-bottom:14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px">' +
+        '<div><b>' + esc(w.name || '—') + '</b> <span class="badge ' + (w.section === 'blue' ? 'badge-blue' : 'badge-red') + '" style="font-size:10px">' + (w.section === 'blue' ? 'Blue' : 'Red') + '</span> ' + graded + '</div>' +
+        '<div style="font-size:.75rem;color:#8a8a8a">' + esc(w.promptTitle || '') + ' · ' + relativeTime(w.createdAt) + '</div>' +
+      '</div>' +
+      '<div style="font-size:.9rem;background:var(--green-lt);border-left:4px solid var(--green);border-radius:8px;padding:10px;margin-bottom:10px;white-space:pre-wrap">' + esc(w.text || '') + '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin-bottom:10px">' +
+        '<div style="flex:1;min-width:180px"><div style="font-weight:700;font-size:.82rem;margin-bottom:4px">Student self-assessment</div>' + selfHtml + '</div>' +
+        '<div style="flex:1;min-width:220px"><div style="font-weight:700;font-size:.82rem;margin-bottom:4px">Teacher rubric grade (1–3)</div><div style="display:flex;flex-wrap:wrap;gap:6px">' + gradeHtml + '</div>' +
+        '<input data-w="' + w.id + '" class="tcomment" type="text" placeholder="Comment…" value="' + escAttr(w.teacherComment || '') + '" style="width:100%;margin-top:6px;font-family:\'Lexend\';font-size:.85rem;padding:6px 10px;border-radius:8px;border:2px solid var(--line)">' +
+        '<button class="icon-btn" style="margin-top:8px" onclick="saveGrade(\'' + w.id + '\')">&#128190; Save grade</button></div>' +
+      '</div></div>';
+  }).join('');
+}
+function saveGrade(id) {
+  const g = {};
+  WRITE_CRIT.forEach(([k]) => { const s = document.querySelector('.tgrade[data-w="' + id + '"][data-k="' + k + '"]'); g[k] = s ? Number(s.value) : 1; });
+  const c = document.querySelector('.tcomment[data-w="' + id + '"]');
+  const comment = c ? c.value.trim() : '';
+  db.collection('writings').doc(id).update({ teacherGrade: g, teacherComment: comment, gradedAt: new Date().toISOString() })
+    .then(() => { Logger.push('success','admin','gradeWriting:ok',{id:id},null,null,null); toast('Grade saved ✓','good'); loadWritings(); })
+    .catch(e => { Logger.push('error','admin','gradeWriting:failed',{id:id},null,{code:e&&e.code,message:e&&e.message},null); toastError('Could not save grade'); });
 }
 
 // ===== DIAGNOSTICS (system log report) =====

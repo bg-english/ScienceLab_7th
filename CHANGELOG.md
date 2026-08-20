@@ -2,6 +2,28 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [4.1.0] — 2026-08-19 — "SM-2 + Rúbricas de escritura"
+
+### Added — Spaced repetition SM-2 (flashcards)
+- The Leitner boxes are now driven by the **SM-2 algorithm**: each card keeps
+  `{n (repetitions), ef (easiness factor), interval, due}`.
+  - Good → interval 1, then 6, then `interval × EF`; box grows.
+  - Okay → resets to interval 1 (review tomorrow). Hard → n=0, interval 1.
+  - The deck highlights **"Due now"** cards and shows the next-review day.
+  - `cardBox` stays in sync so the teacher's Leitner dashboard keeps working.
+
+### Added — Writing Lab rubric (WIDA/Cambridge inspired)
+- Students self-assess their text on 4 criteria (Message & Content, Science
+  Vocabulary, Grammar & Structure, Organization & Connectors) with 3 levels
+  (WIDA-like Emerging → Developing → Bridging) before submitting.
+- Submissions are stored in Firestore `writings/` (student creates own).
+
+### Added — Teacher rubric grading panel
+- New **✍️ Writing** panel in the teacher dashboard: list of submissions
+  (filter: all / ungraded / graded), student text + self-assessment, teacher
+  rubric grade (1–3 per criterion) + comment, saved back to the submission.
+- Firestore rule: students create/read their own; teacher reads + grades all.
+
 ## [4.0.0] — 2026-08-19 — "Evaluación formativa + habilidades lingüísticas"
 
 ### Added — Research & design

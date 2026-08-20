@@ -165,6 +165,8 @@ button{font-family:'Lexend';cursor:pointer}
 .deck-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:22px}
 .deck-card{background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:16px;text-align:center;transition:.18s;cursor:pointer}
 .deck-card:hover{border-color:var(--green)}
+.deck-card.due{border-color:var(--red);background:#fef0f0;animation:duepulse 1.8s ease-in-out infinite}
+@keyframes duepulse{0%,100%{box-shadow:0 0 0 0 rgba(200,32,46,.25)}50%{box-shadow:0 0 0 6px rgba(200,32,46,0)}}
 .deck-card .box{display:inline-block;width:34px;height:34px;border-radius:50%;font-weight:800;line-height:34px;margin-bottom:8px;font-family:'Bricolage Grotesque'}
 .box1{background:var(--sky-lt);color:var(--blue)}.box2{background:var(--leaf-lt);color:var(--green)}
 .box3{background:var(--soft);color:var(--gold-dk)}.box4{background:var(--blue-lt);color:var(--blue)}
@@ -196,6 +198,16 @@ button{font-family:'Lexend';cursor:pointer}
 .write-prompt .wp-body{font-size:.95rem;opacity:.9}
 .write-area textarea{width:100%;min-height:180px;font-family:'Lexend';font-size:1rem;padding:18px;border-radius:16px;border:2px solid var(--line);background:var(--paper);color:var(--ink);outline:none;resize:vertical}
 .write-area textarea:focus{border-color:var(--green)}
+.rubric-box{background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:16px 18px;margin-top:14px}
+.rubric-head{font-weight:700;font-size:.95rem;margin-bottom:12px}
+.rubric-crit{margin-bottom:12px}
+.rubric-crit:last-child{margin-bottom:0}
+.rubric-title{font-size:.85rem;font-weight:600;margin-bottom:6px}
+.rubric-title small{color:#8a8a8a;font-weight:400}
+.rubric-opts{display:flex;flex-wrap:wrap;gap:8px}
+.rubric-opt{display:flex;align-items:center;gap:6px;font-size:.82rem;background:var(--green-lt);border:2px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;transition:.15s}
+.rubric-opt:hover{border-color:var(--green)}
+.rubric-opt input{accent-color:var(--green)}
 
 /* ===== EXAM ===== */
 .exam-prog{max-width:720px;margin:0 auto 24px}
@@ -528,7 +540,7 @@ const SKILLS={
 };
 
 /* ===== state ===== */
-let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}}};
+let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},cardSrs:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}}};
 if(state.lastExamScore===undefined)state.lastExamScore=null;
 if(state.bestExamScore===undefined)state.bestExamScore=null;
 if(!state.examHistory)state.examHistory=[];
@@ -539,6 +551,7 @@ if(!state.mastery)state.mastery={};
 if(!state.review)state.review=[];
 if(!state.badges)state.badges=[];
 if(!state.cardBox)state.cardBox={};
+if(!state.cardSrs)state.cardSrs={};
 if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};
 if(state.totalXp===undefined){
   var retroXp=0;
@@ -907,6 +920,16 @@ const WRITE_PROMPTS=[
   {icon:'🎨',title:'Respiration Poster',meta:'Meaningful Learning Experience · Lesson 2',body:'Describe the poster you will design about plant respiration. Explain the stomata, how roots breathe, and why ALL living things need to breathe. End with a Bible reflection using Genesis 9:3.'},
   {icon:'🫁',title:'Respiratory System Model',meta:'Meaningful Learning Experience · Lesson 3',body:'Write a complete report of your respiratory system model (balloons, straws, bottle). Explain how the model shows the diaphragm working, name each organ, and include a reflection on Psalm 150:6 — how we can praise the Lord each day.'},
   {icon:'📖',title:'Why Breathing Matters',meta:'Reading & Writing · Extra Practice',body:'Explain in 60–100 words why breathing is necessary for all living things — plants and humans. Compare how plants breathe (stomata, roots) with how humans breathe (nose, trachea, lungs, diaphragm).'}
+];
+
+/* ===== WRITING SELF-ASSESSMENT RUBRIC (WIDA/Cambridge inspired) =====
+   3 levels per criterion (WIDA-like: Emerging → Developing → Bridging).
+   The student rates their own text; the teacher grades it later. */
+const WRITE_RUBRIC=[
+  {key:'message',c:'Message & Content',d:'Did you answer the prompt and express your idea clearly?',levels:['I need help expressing my idea','I expressed my main idea with some support','I expressed my idea clearly and fully']},
+  {key:'vocab',c:'Science Vocabulary',d:'Did you use the Science words from class?',levels:['I used few Science words','I used some Science words correctly','I used many Science words correctly']},
+  {key:'structure',c:'Grammar & Structure',d:'Did you use correct sentences and structures?',levels:['My sentences are hard to follow','My sentences are mostly correct','My grammar is clear and correct']},
+  {key:'organize',c:'Organization & Connectors',d:'Did you order your ideas and connect them?',levels:['My ideas are in a mixed order','I connected some ideas with connectors','My writing flows with good connectors']}
 ];
 
 /* ===== EXAM ===== */
@@ -1320,16 +1343,38 @@ function openLesson(id){
 
 /* ===== FLASHCARDS VIEW ===== */
 let curCard=null;
+/* ===== FLASHCARDS with SM-2 spaced repetition ===== */
+function srsOf(id){return state.cardSrs[id]||{box:1,n:0,ef:2.5,interval:0,due:0};}
+function srsIsDue(id){const s=srsOf(id);return !s.due||s.due<=Date.now();}
+function srsNextDays(id){const s=srsOf(id);if(!s.interval)return 0;const d=Math.round((s.due-Date.now())/86400000);return d<0?0:d;}
+// SM-2: q = quality (5=Good, 3=Okay, 1=Hard)
+function applySRS(id,q){
+  const c=srsOf(id);
+  let n=c.n,ef=c.ef,interval=c.interval||0;
+  if(q>=3){
+    if(n===0)interval=1;else if(n===1)interval=6;else interval=Math.max(1,Math.round(interval*ef));
+    n++;
+  }else{n=0;interval=1;}
+  ef=Math.max(1.3,ef+(0.1-(5-q)*(0.08+(5-q)*0.02)));
+  const box=Math.min(5,1+n);
+  state.cardSrs[id]={box:box,n:n,ef:ef,interval:interval,due:Date.now()+interval*86400000};
+  state.cardBox[id]=box; // keep Leitner display in sync for the teacher dashboard
+  return {box:box,days:interval};
+}
 function renderDeck(){
   const e=document.getElementById('v-cards');
+  const due=CARDS.filter(c=>srsIsDue(c.id)).length;
   let deck='';
   CARDS.forEach(c=>{
     const box=state.cardBox[c.id]||1;
     const pct=masteryPct(c.skill);
-    deck+='<div class="deck-card" onclick="openFlashcard(\''+c.id+'\')"><div class="box box'+box+'">'+box+'</div><div class="dc-name">'+c.a.split(' ').slice(0,3).join(' ')+'…</div><div class="dc-box">'+SKILLS[c.skill]+' · '+pct+'%</div></div>';
+    const isDue=srsIsDue(c.id);
+    const days=srsNextDays(c.id);
+    deck+='<div class="deck-card'+(isDue?' due':'')+'" onclick="openFlashcard(\''+c.id+'\')"><div class="box box'+box+'">'+box+'</div><div class="dc-name">'+c.a.split(' ').slice(0,3).join(' ')+'…</div><div class="dc-box">'+SKILLS[c.skill]+' · '+pct+'%'+(isDue?'<br><b style="color:var(--red)">Due now</b>':(days>0?'<br><small>next: '+days+'d</small>':'<br><small>new</small>'))+'</div></div>';
   });
   e.innerHTML='<span class="eyebrow">🃏 Flashcard Lab</span><h2 class="h-title">Science Flashcards</h2>'+
-    '<p class="h-sub">Tap a card to study it. When you flip it, rate yourself: <b>Good</b> (moves up a box), <b>Okay</b> (stays), <b>Hard</b> (back to box 1). Box 5 = mastered!</p>'+
+    '<p class="h-sub">Smart review with spaced repetition (SM-2): rate yourself after flipping. <b>Good</b> pushes the next review further out, <b>Okay</b> resets to tomorrow, <b>Hard</b> keeps it close. Cards marked <b>Due now</b> are ready to review.</p>'+
+    '<div style="text-align:center;margin-bottom:12px"><span class="tag '+(due?'tag-red':'tag-green')+'">'+(due?('🔔 '+due+' due today'):'✓ All reviewed for today')+'</span></div>'+
     '<div class="deck-wrap">'+deck+'</div>'+
     '<div style="text-align:center;font-size:.85rem;color:#8a8a8a">Box 1 (new) → 2 → 3 → 4 → 5 (mastered) · Space bar flips the card</div>';
 }
@@ -1338,10 +1383,12 @@ function openFlashcard(id){
   curCard=c;
   const e=document.getElementById('v-cards');
   const box=state.cardBox[id]||1;
+  const days=srsNextDays(id);
+  const status=srsIsDue(id)?'<b style="color:var(--red)">Due now</b>':(days>0?'next review in <b>'+days+'d</b>':'new card');
   e.innerHTML='<button class="btn btn-ghost btn-sm" onclick="renderDeck()">← All cards</button>'+
     '<div class="flashcard-wrap" style="margin-top:16px">'+
       '<div class="flashcard" id="fc" onclick="flipCard()">'+
-        '<div class="fc-face fc-front"><span class="fc-skill">'+SKILLS[c.skill]+' · Box '+box+'</span><div class="fc-q">'+c.q+'</div><div class="fc-flip-hint">Tap to flip ↻</div></div>'+
+        '<div class="fc-face fc-front"><span class="fc-skill">'+SKILLS[c.skill]+' · Box '+box+' · '+status+'</span><div class="fc-q">'+c.q+'</div><div class="fc-flip-hint">Tap to flip ↻</div></div>'+
         '<div class="fc-face fc-back"><div class="fc-a">'+c.a+'</div><div class="fc-extra">'+c.extra+'</div></div>'+
       '</div>'+
     '</div>'+
@@ -1355,16 +1402,14 @@ function flipCard(){document.getElementById('fc').classList.toggle('flipped');do
 function rateCard(grade){
   if(!curCard)return;
   const id=curCard.id;
-  const cur=state.cardBox[id]||1;
-  if(grade>0)state.cardBox[id]=Math.min(5,cur+1);       // Good → move up
-  else if(grade<0)state.cardBox[id]=Math.max(1,cur-1);  // Hard → move down
-  else state.cardBox[id]=cur;                            // Okay → stay
+  const q = grade>0?5 : grade<0?1 : 3;   // SM-2 quality
+  const r=applySRS(id,q);
   persist();
   const xp = grade>0?8 : grade<0?1 : 4;
   addXP(xp);
-  Logger.score('card',curCard.skill,null,grade,{cardId:id,box:state.cardBox[id]});
+  Logger.score('card',curCard.skill,null,grade,{cardId:id,box:r.box,nextDays:r.days});
   syncToFirestore();
-  toast(grade>0?'🌟 Card learned!':grade<0?'Keep practicing, you got this!':'Nice job — keep reviewing!','good');
+  toast(grade>0?('🌟 Card learned! Next review in '+r.days+'d'):grade<0?'Keep practicing — it will stay close.':'Nice job — review it again tomorrow.','good');
   renderDeck();
 }
 // Space bar flips flashcard
@@ -1409,26 +1454,55 @@ function renderWrite(){
   WRITE_PROMPTS.forEach((p,i)=>{
     prompts+='<div class="write-prompt"><h3>'+p.icon+' '+p.title+'</h3><div class="wp-meta">'+p.meta+'</div><div class="wp-body">'+p.body+'</div><div style="margin-top:12px"><button class="btn btn-green btn-sm" onclick="openWrite('+i+')">Start Writing ✍️</button></div></div>';
   });
-  e.innerHTML='<span class="eyebrow">✍️ Write Lab</span><h2 class="h-title">Writing & Creative Work</h2><p class="h-sub">Your meaningful learning experiences this term. Write your best work — it will be shared in class!</p>'+prompts;
+  e.innerHTML='<span class="eyebrow">✍️ Write Lab</span><h2 class="h-title">Writing & Creative Work</h2><p class="h-sub">Your meaningful learning experiences this term. Write your best work — it will be shared in class! Before you submit, rate your own text with the rubric — it helps you grow as a writer.</p>'+prompts;
 }
 function openWrite(i){
   const p=WRITE_PROMPTS[i];
+  _currentPrompt=i;
   const e=document.getElementById('v-write');
+  let rubric='';
+  WRITE_RUBRIC.forEach((r,ri)=>{
+    let opts='';
+    r.levels.forEach((lv,li)=>{opts+='<label class="rubric-opt"><input type="radio" name="rub'+ri+'" value="'+li+'"> <span>'+lv+'</span></label>';});
+    rubric+='<div class="rubric-crit"><div class="rubric-title">'+r.c+' — <small>'+r.d+'</small></div><div class="rubric-opts">'+opts+'</div></div>';
+  });
   e.innerHTML='<button class="btn btn-ghost btn-sm" onclick="renderWrite()">← All prompts</button>'+
     '<div class="write-prompt" style="margin-top:14px"><h3>'+p.icon+' '+p.title+'</h3><div class="wp-meta">'+p.meta+'</div><div class="wp-body">'+p.body+'</div></div>'+
     '<div class="write-area"><textarea id="writeText" placeholder="Write here…"></textarea></div>'+
+    '<div class="rubric-box"><div class="rubric-head">📋 Self-assessment rubric <span style="font-weight:400;font-size:.8rem;color:#8a8a8a">(WIDA/Cambridge inspired — rate honestly)</span></div>'+rubric+'</div>'+
     '<div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap"><button class="btn btn-green" onclick="submitWriting()">📤 Submit (10 XP)</button><button class="btn btn-gold" onclick="readAloud()">🔊 Read aloud</button></div>'+
     '<div id="writeFb"></div>';
   setTimeout(function(){var t=document.getElementById('writeText');if(t)t.focus();},100);
 }
+let _currentPrompt=0;
 function submitWriting(){
   const t=document.getElementById('writeText');
   const val=t?t.value.trim():'';
-  if(val.split(/\s+/).length<20){document.getElementById('writeFb').innerHTML='<div class="eq-fb no" style="margin-top:12px">Write at least 20 words — you can do it! 🌟</div>';return;}
-  addXP(10);Logger.score('write','resp-vocab',null,null,{words:val.split(/\s+/).length});syncNow();
-  document.getElementById('writeFb').innerHTML='<div class="eq-fb ok" style="margin-top:12px">🌟 Beautiful work, '+firstName()+'! +10 XP earned. Your teacher will love it!</div>';
+  const fb=document.getElementById('writeFb');
+  if(val.split(/\s+/).length<20){fb.innerHTML='<div class="eq-fb no" style="margin-top:12px">Write at least 20 words — you can do it! 🌟</div>';return;}
+  // collect self-assessment
+  const self={};
+  WRITE_RUBRIC.forEach((r,ri)=>{
+    const sel=document.querySelector('input[name="rub'+ri+'"]:checked');
+    self[r.key]=sel?Number(sel.value):null;
+  });
+  if(Object.keys(self).some(k=>self[k]===null)){fb.innerHTML='<div class="eq-fb no" style="margin-top:12px">Rate yourself on every rubric line first — it only takes a second! 🌱</div>';return;}
+  addXP(10);Logger.score('write','resp-vocab',null,null,{words:val.split(/\s+/).length,self:JSON.stringify(self)});
+  // store submission for the teacher's rubric grading
+  if(FB_CONFIGURED&&db&&myUid&&playerName){
+    db.collection('writings').add({
+      uid:myUid,name:playerName,section:playerSection||null,
+      promptId:_currentPrompt,promptTitle:WRITE_PROMPTS[_currentPrompt]?WRITE_PROMPTS[_currentPrompt].title:'',
+      text:val.slice(0,4000),self:self,teacherGrade:null,teacherComment:null,
+      createdAt:new Date().toISOString()
+    }).then(function(){Logger.push('success','write','submitWriting:stored',{words:val.split(/\s+/).length},null,null,null);})
+      .catch(function(e){Logger.push('warn','write','submitWriting:storeFailed',null,null,{code:e&&e.code,message:e&&e.message},null);});
+  }
+  syncNow();
+  fb.innerHTML='<div class="eq-fb ok" style="margin-top:12px">🌟 Beautiful work, '+firstName()+'! +10 XP earned. Your teacher will review it and grade it with the rubric.</div>';
   miniConfetti();
   speak('Great job! Your writing is amazing!');
+  setTimeout(function(){renderWrite();},2500);
 }
 function readAloud(){const t=document.getElementById('writeText');if(t&&t.value.trim())speak(t.value);}
 
@@ -1652,6 +1726,7 @@ function buildSyncBody(){
     skillTypeMastery:state.skillTypeMastery||{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}},
     skillLvl:state.skillLvl,
     cardBox:state.cardBox||{},
+    cardSrs:state.cardSrs||{},
     updatedAt:new Date().toISOString()
   };
 }
