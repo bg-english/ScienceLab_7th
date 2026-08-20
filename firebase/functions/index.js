@@ -425,6 +425,63 @@ function totalXpToLevel(totalXp) {
 }
 
 // ============================================================
+// FULL ANTI-CHEAT — server-side item bank + verification
+// The authoritative questions live in items.js. The client only
+// renders them; the server verifies each answer and awards XP in
+// a transaction, so editing localStorage cannot fake correctness.
+// ============================================================
+const ITEMS_BANK = require('./items');
+
+function normText(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim().replace(/[.,!?;:'"()]/g, ''); }
+function keyOf(q) { return normText(q); }
+
+// Index: question-key -> item (built once per warm instance)
+const BANK_BY_KEY = new Map();
+ITEMS_BANK.forEach(it => { if (it && it.q) BANK_BY_KEY.set(keyOf(it.q), it); });
+
+// Server-authoritative check of a submitted answer.
+exports.scienceVerifyAnswer = onCall({}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const data = request.data || {};
+  const key = normText(data.key || data.q || '');
+  const it = BANK_BY_KEY.get(key);
+  if (!it) throw new HttpsError('not-found', 'Question not found in the server bank.');
+  if (it.type === 'order' || it.type === 'speak') throw new HttpsError('invalid-argument', 'This question type is not server-verifiable.');
+  const skill = String(data.skill || it.sk || '').slice(0, 40);
+  if (!VALID_SKILLS.includes(skill)) throw new HttpsError('invalid-argument', 'Unknown skill.');
+  const stype = String(it.skillType || (it.type === 'fill' ? 'W' : 'R')).slice(0, 1) || 'R';
+
+  let correct = false;
+  if (it.type === 'fill') {
+    const val = normText(data.fill || '');
+    const ans = normText(it.a || '');
+    correct = val === ans;
+  } else {
+    correct = Number(data.choice) === Number(it.a);
+  }
+  const xpDelta = correct ? 10 : 2;
+  const uid = request.auth.uid;
+  const ref = db.collection('scores').doc(uid);
+  let totals = null;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const cur = (snap.exists ? snap.data() : {});
+    const answered = (Number(cur.answered) || 0) + 1;
+    const correctN = (Number(cur.correct) || 0) + (correct ? 1 : 0);
+    const xp = (Number(cur.xp) || 0) + xpDelta;
+    const totalXp = (Number(cur.totalXp) || 0) + xpDelta;
+    const level = totalXpToLevel(totalXp);
+    const mastery = cur.mastery && typeof cur.mastery === 'object' ? { ...cur.mastery } : {};
+    const m = mastery[skill] = { seen: (mastery[skill] && mastery[skill].seen || 0) + 1, correct: (mastery[skill] && mastery[skill].correct || 0) + (correct ? 1 : 0) };
+    const stm = cur.skillTypeMastery && typeof cur.skillTypeMastery === 'object' ? { ...cur.skillTypeMastery } : {};
+    const st = stm[stype] = { seen: (stm[stype] && stm[stype].seen || 0) + 1, correct: (stm[stype] && stm[stype].correct || 0) + (correct ? 1 : 0) };
+    tx.set(ref, { ...(snap.exists ? cur : {}), uid, answered, correct: correctN, xp, totalXp, level, mastery, skillTypeMastery: stm, updatedAt: new Date().toISOString() }, { merge: true });
+    totals = { answered, correct: correctN, xp, totalXp, level, xpDelta, mastery: { [skill]: m }, skillTypeMastery: { [stype]: st } };
+  });
+  return { ok: true, correct, fb: String(it.fb || '').slice(0, 300), hint: String(it.hint || '').slice(0, 200), ...totals };
+});
+
+// ============================================================
 // ROTATION — daily summary + purge (keeps /logs lightweight)
 // Requires a Blaze plan (scheduled functions). If not scheduled, the
 // Diagnostics panel still works; logs are just not auto-purged.

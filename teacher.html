@@ -634,6 +634,29 @@ function render() {
   }
   html += `</tbody></table></div>`;
 
+  // Skill-type mastery heatmap (Reading / Listening / Speaking / Writing)
+  html += `<div class="section-title">Language Skills in Science (R/L/S/W)</div>`;
+  const ST_LABELS = [['R','📖 Reading'],['L','🎧 Listening'],['S','🗣️ Speaking'],['W','✍️ Writing']];
+  const stAgg = {};
+  ST_LABELS.forEach(([k]) => stAgg[k] = { seen: 0, correct: 0 });
+  html += `<div class="heatmap-wrap"><table>
+    <thead><tr><th style="text-align:left">Student</th>`;
+  ST_LABELS.forEach(([k, l]) => html += `<th>${l}</th>`);
+  html += `</tr></thead><tbody>`;
+  for (const s of sorted) {
+    html += `<tr><td>${esc(s.name) || '---'}</td>`;
+    for (const [k] of ST_LABELS) {
+      const m = mastery(s.skillTypeMastery, k);
+      if (m.seen > 0) { stAgg[k].seen += m.seen; stAgg[k].correct += Math.round(m.pct * m.seen / 100); }
+      html += `<td class="${heatClass(m.pct)}">${m.pct != null ? m.pct + '%' : '-'}</td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table></div>`;
+  html += `<div style="font-size:12px;color:#8a8a8a;margin-bottom:10px">Class accuracy by skill: ` +
+    ST_LABELS.map(([k, l]) => { const a = stAgg[k]; const p = a.seen ? Math.round(a.correct / a.seen * 100) : null; return `${l}: <b>${p != null ? p + '%' : '—'}</b>`; }).join(' · ') +
+    `</div>`;
+
   // Weakness analysis
   const skillStats = SKILLS.map(sk => {
     let totalSeen = 0, totalCorrect = 0;

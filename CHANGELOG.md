@@ -2,6 +2,33 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [4.0.0] — 2026-08-19 — "Evaluación formativa + habilidades lingüísticas"
+
+### Added — Research & design
+- **`RESEARCH.md`**: estudio de tipos de pregunta del mercado educativo, mecánicas
+  de gamificación que producen conocimiento (retrieval practice, repetición
+  espaciada, interleaving…), habilidades R/L/S/W aplicadas a Science (CLIL),
+  alineación con evaluaciones internacionales (PISA, Cambridge YLE/Key, WIDA,
+  TOEFL Junior, Common Core, NGSS) y diseño de dashboards por habilidad.
+
+### Added — New question types (each item now declares its skillType)
+- **True/False** (`tf`), **Ordering/sequencing** (`order`), **Listening** (`listen`,
+  audio vía TTS), **Speaking** (`speak`, modelo TTS + autoevaluación).
+- 78 ítems en total: 48 mc, 12 fill, 6 tf, 4 order, 4 listen, 4 speak.
+- `skillType` (R/L/S/W) derivado automáticamente para ítems previos.
+
+### Added — Anti-cheat completo (banco en servidor)
+- El banco de preguntas vive ahora en el servidor (`functions/items.js`).
+- `scienceVerifyAnswer` callable: verifica cada respuesta (mc/fill/tf/listen)
+  contra el banco autoritativo, puntúa en transacción (XP, mastery por tema Y por
+  habilidad R/L/S/W) y devuelve el veredicto; el cliente adopta los totales.
+- Fallback offline seguro (registrado en el log) si no hay conexión.
+
+### Added — Dashboards por tipo de habilidad
+- Estudiante (Home): "Your Language Skills in Science" con barras R/L/S/W.
+- Profesor (Dashboard): heatmap estudiante × R/L/S/W + precisión de clase por
+  habilidad. `skillTypeMastery` se guarda en cada score y se sincroniza.
+
 ## [3.0.0] — 2026-08-19 — "Depuración + Policía Interno"
 
 ### Added — System log (internal police)

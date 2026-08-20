@@ -148,6 +148,13 @@ button{font-family:'Lexend';cursor:pointer}
 .eq-opt.wrong{background:#fbe4e6;border-color:var(--bad);color:var(--red-dk)}
 .eq-fill input{width:100%;font-family:'Lexend';font-size:1.1rem;font-weight:600;padding:14px 18px;border-radius:16px;border:2px solid var(--line);background:var(--paper);color:var(--ink);outline:none}
 .eq-fill input:focus{border-color:var(--green)}
+.eq-order .order-seq{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;min-height:20px}
+.order-chip{display:block;background:var(--green-lt);border:2px solid var(--green);border-radius:10px;padding:8px 12px;font-size:.85rem;font-weight:600;color:var(--green-dk)}
+.order-opt{width:100%;text-align:left}
+.order-opt.used{opacity:.45;background:var(--blue-lt);border-color:var(--blue);pointer-events:none}
+.eq-audio{text-align:center}
+.eq-speak{text-align:center}
+.eq-audio .eq-opts,.eq-speak .eq-opts{text-align:left}
 .eq-fb{margin-top:18px;padding:14px 18px;border-radius:14px;font-size:.9rem;animation:fade .3s}
 .eq-fb.ok{background:var(--green-lt);border:2px solid var(--ok)}
 .eq-fb.no{background:#fbe4e6;border:2px solid var(--bad)}
@@ -521,7 +528,7 @@ const SKILLS={
 };
 
 /* ===== state ===== */
-let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},seenQ:{},skillLvl:{},skillBadges:{}};
+let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}}};
 if(state.lastExamScore===undefined)state.lastExamScore=null;
 if(state.bestExamScore===undefined)state.bestExamScore=null;
 if(!state.examHistory)state.examHistory=[];
@@ -532,6 +539,7 @@ if(!state.mastery)state.mastery={};
 if(!state.review)state.review=[];
 if(!state.badges)state.badges=[];
 if(!state.cardBox)state.cardBox={};
+if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};
 if(state.totalXp===undefined){
   var retroXp=0;
   for(var lv=1;lv<state.level;lv++){retroXp+=(lv<=3?100:lv<=6?150:lv<=9?200:lv<=12?300:lv<=15?400:500);}
@@ -703,7 +711,8 @@ function checkBadges(){
 
 /* ===== mastery ===== */
 function masteryPct(s){const m=state.mastery[s];return m&&m.seen?Math.round(m.correct/m.seen*100):0;}
-function recordAnswer(skill,correct){state.answered++;if(correct)state.correct++;const m=state.mastery[skill];m.seen++;if(correct){m.correct++;addSkillXP(skill,15);}else{addSkillXP(skill,3);}persist();if(state.correct===1)award('first');checkBadges();checkSkillBadges(skill);}
+function recordAnswer(skill,correct,stype){state.answered++;if(correct)state.correct++;const m=state.mastery[skill];m.seen++;if(correct){m.correct++;addSkillXP(skill,15);}else{addSkillXP(skill,3);}if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};const t=stype||skillTypeOf({type:'mc'});const st=state.skillTypeMastery[t]||(state.skillTypeMastery[t]={seen:0,correct:0});st.seen++;if(correct)st.correct++;persist();if(state.correct===1)award('first');checkBadges();checkSkillBadges(skill);}
+function skillPct(t){const st=(state.skillTypeMastery||{})[t];return st&&st.seen?Math.round(st.correct/st.seen*100):0;}
 
 /* ===== DATA: LESSONS (from the temario) ===== */
 const LESSONS=[
@@ -750,6 +759,15 @@ const LESSONS=[
 ];
 
 /* ===== DATA: PRACTICE ITEMS ===== */
+// skillType: which language skill each item trains (R=Reading, L=Listening,
+// S=Speaking, W=Writing). Derived for legacy items; explicit on new ones.
+function skillTypeOf(it){
+  if(it.type==='fill'||it.type==='write')return 'W';
+  if(it.type==='listen')return 'L';
+  if(it.type==='speak')return 'S';
+  return 'R'; // mc, tf, order, read → Reading
+}
+const SKILL_TYPES={R:'Reading',L:'Listening',S:'Speaking',W:'Writing'};
 const ITEMS=[
   /* Photosynthesis Process */
   {"sk":"photo-process","type":"mc","q":"Photosynthesis is the process plants use to make their own ___ .","o":["water","food","soil","air"],"a":1,"fb":"Photosynthesis makes <b>food</b> (glucose) — plants are producers!","hint":"Plants don't hunt or shop — they make it themselves."},
@@ -822,7 +840,29 @@ const ITEMS=[
   {"sk":"resp-vocab","type":"mc","q":"The word 'alveoli' refers to ___ .","o":["tiny air sacs in the lungs","stomach muscles","nose hairs","bone cells"],"a":0,"fb":"<b>Alveoli</b> = tiny air sacs where gas exchange happens.","hint":"They look like tiny balloons."},
   {"sk":"resp-vocab","type":"mc","q":"What is the scientific name for 'windpipe'?","o":["Trachea","Esophagus","Pharynx","Aorta"],"a":0,"fb":"The windpipe is the <b>trachea</b>.","hint":"Starts with 'tra'."},
   {"sk":"resp-vocab","type":"fill","q":"The word that means 'to breathe out' is ___.","a":"exhale","fb":"<b>Exhale</b> = breathe out.","hint":"The opposite of inhale."},
-  {"sk":"resp-vocab","type":"mc","q":"Which gas do humans breathe IN and plants release?","o":["Oxygen","Carbon dioxide","Methane","Smoke"],"a":0,"fb":"We breathe in <b>oxygen</b> — the same gas plants release during photosynthesis!","hint":"We are connected to plants!"}
+  {"sk":"resp-vocab","type":"mc","q":"Which gas do humans breathe IN and plants release?","o":["Oxygen","Carbon dioxide","Methane","Smoke"],"a":0,"fb":"We breathe in <b>oxygen</b> — the same gas plants release during photosynthesis!","hint":"We are connected to plants!"},
+  /* ===== NEW QUESTION TYPES (Reading) ===== */
+  {"sk":"photo-process","type":"tf","q":"Photosynthesis happens only in the roots of a plant.","a":1,"fb":"False — photosynthesis happens mainly in the <b>leaves</b>, where chlorophyll captures sunlight.","hint":"Where is the green pigment?","skillType":"R"},
+  {"sk":"plant-resp","type":"tf","q":"Plants respire all the time, day and night.","a":0,"fb":"True — plants always need energy, so they respire all the time.","hint":"Do living things ever stop needing energy?","skillType":"R"},
+  {"sk":"human-organs","type":"tf","q":"The trachea carries food to the stomach.","a":1,"fb":"False — the <b>trachea</b> (windpipe) carries air to the lungs; the esophagus carries food.","hint":"Air tube or food tube?","skillType":"R"},
+  {"sk":"resp-care","type":"tf","q":"Smoking is good for your lungs.","a":1,"fb":"False — smoking damages the lungs and alveoli.","hint":"Does smoke help or hurt?","skillType":"R"},
+  {"sk":"gas-exchange","type":"tf","q":"Oxygen passes from the alveoli into the blood.","a":0,"fb":"True — that is exactly how oxygen reaches your blood.","hint":"Direction of oxygen: air sacs → blood.","skillType":"R"},
+  {"sk":"photo-inputs","type":"tf","q":"Water is one of the inputs of photosynthesis.","a":0,"fb":"True — roots absorb water from the soil; it is an input.","hint":"Three inputs: sunlight, water, CO₂.","skillType":"R"},
+  /* ===== NEW: ORDER (sequencing) ===== */
+  {"sk":"photo-process","type":"order","q":"Put the photosynthesis steps in the correct order.","steps":["Sunlight hits the leaves","Roots absorb water from the soil","Leaves take in carbon dioxide","Glucose and oxygen are made"],"fb":"Sunlight + water + CO₂ → glucose + oxygen in the leaves.","skillType":"R"},
+  {"sk":"breathing","type":"order","q":"Order the path of air when you breathe in.","steps":["Nose (air is warmed and cleaned)","Trachea (windpipe)","Bronchi","Lungs (alveoli)"],"fb":"Air goes: nose → trachea → bronchi → lungs.","skillType":"R"},
+  {"sk":"gas-exchange","type":"order","q":"Order what happens during gas exchange.","steps":["Oxygen enters the alveoli","Oxygen passes into the blood","Carbon dioxide leaves the blood","You breathe the CO₂ out"],"fb":"O₂ in, CO₂ out — across the thin alveoli walls.","skillType":"R"},
+  {"sk":"root-resp","type":"order","q":"Order why over-watering hurts plants.","steps":["Water fills the soil air spaces","Roots cannot get oxygen","Roots cannot respire for energy","The roots may rot"],"fb":"Too much water = no air for the roots.","skillType":"R"},
+  /* ===== NEW: LISTENING (TTS) ===== */
+  {"sk":"photo-inputs","type":"listen","audio":"Plants need sunlight, water and carbon dioxide to make their own food.","q":"You heard: what do plants need to make food?","o":["Sunlight, water and CO₂","Sugar, salt and air","Oxygen, soil and fire","Milk, bread and water"],"a":0,"fb":"Plants need sunlight, water and carbon dioxide.","skillType":"L"},
+  {"sk":"breathing","type":"listen","audio":"When you breathe in, the diaphragm moves down and flattens, and air rushes into your lungs.","q":"You heard: what does the diaphragm do when you inhale?","o":["It moves down and flattens","It moves up","It disappears","It closes the nose"],"a":0,"fb":"On inhalation the diaphragm flattens (moves down).","skillType":"L"},
+  {"sk":"human-organs","type":"listen","audio":"The path of air is nose, trachea, bronchi and lungs.","q":"You heard: what comes after the trachea?","o":["Bronchi","Nose","Alveoli only","Stomach"],"a":0,"fb":"Air goes nose → trachea → bronchi → lungs.","skillType":"L"},
+  {"sk":"plant-resp","type":"listen","audio":"Respiration releases energy from glucose using oxygen, and it happens all the time.","q":"You heard: what does respiration release?","o":["Energy","Water","Color","Sound"],"a":0,"fb":"Respiration releases energy from glucose.","skillType":"L"},
+  /* ===== NEW: SPEAKING (TTS model + self-assess) ===== */
+  {"sk":"resp-vocab","type":"speak","word":"oxygen","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Great — keep practicing the word 'oxygen'!","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"photosynthesis","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Nice! 'Photosynthesis' is a long word — great job!","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"diaphragm","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Excellent! The diaphragm is the breathing muscle.","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"}
 ];
 
 /* ===== DATA: FLASHCARDS ===== */
@@ -938,33 +978,84 @@ function renderItem(){
   }
   curItem=queue[qIdx];const it=curItem;
   if(it.q)state.seenQ[norm(it.q)]=true;
-  let body;
-  if(it.type==='fill'){body='<div class="eq-fill"><input id="fillInput" placeholder="Type here…" autocomplete="off" onkeydown="if(event.key===\'Enter\')submitAnswer()"></div>';}
-  else{body='<div class="eq-opts">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div>';}
-  const instr=it.type==='fill'?'Type the correct word and press Enter.':'Choose the correct option.';
-  var qHTML=it.q;
+  let body, instr, qHTML=it.q, skillType=skillTypeOf(it);
+  const stBadge='<span class="tag '+(skillType==='L'?'tag-blue':skillType==='S'?'tag-gold':skillType==='W'?'tag-green':'tag-red')+'" style="font-size:.62rem;margin-left:6px">'+SKILL_TYPES[skillType]+'</span>';
   if(it.type==='fill'){
+    body='<div class="eq-fill"><input id="fillInput" placeholder="Type here…" autocomplete="off" onkeydown="if(event.key===\'Enter\')submitAnswer()"></div>';
+    instr='Type the correct word and press Enter.';
     var hasParenVerb=/\(([^)]+)\)/.test(it.q);
     if(hasParenVerb){qHTML=it.q.replace(/___\s*\(([^)]+)\)/g,'<span class="blank"></span> <span class="verb-hint">🔤 $1</span>').replace(/\(([^)]+)\)\s*([.!?]?)$/,'<span class="verb-hint">🔤 $1</span>$2');}
     else{qHTML=qHTML.replace(/___/g,'<span class="blank"></span>');}
   }
+  else if(it.type==='tf'){
+    body='<div class="eq-opts"><button class="eq-opt" onclick="submitAnswer(0)">✅ True</button><button class="eq-opt" onclick="submitAnswer(1)">❌ False</button></div>';
+    instr='Is the statement true or false?';
+  }
+  else if(it.type==='order'){
+    body='<div class="eq-order"><div id="orderSeq" class="order-seq"></div><div class="order-opts" id="orderOpts">'+it.steps.map(function(s,j){return '<button class="eq-opt order-opt" onclick="tapOrder('+j+')">'+(j+1)+'. '+esc(s)+'</button>';}).join('')+'</div><button class="btn btn-green" style="margin-top:14px" onclick="gradeOrder()">Check order ✔</button></div>';
+    instr='Tap the steps in the correct order, then press "Check order".';
+    curOrderSeq=[];curOrderDone=0;
+  }
+  else if(it.type==='listen'){
+    body='<div class="eq-audio"><button class="btn btn-blue" onclick="playListen(this)">🔊 Play audio</button><div class="eq-opts" style="margin-top:12px">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div></div>';
+    instr='Listen carefully, then choose the correct option.';
+  }
+  else if(it.type==='speak'){
+    body='<div class="eq-speak"><button class="btn btn-gold" onclick="speak(\''+escAttr(it.word)+'\')">🔊 Model: say it too</button><div class="eq-opts" style="margin-top:12px">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div></div>';
+    instr='Listen to the model, repeat it out loud, then rate yourself.';
+  }
+  else{
+    body='<div class="eq-opts">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div>';
+    instr='Choose the correct option.';
+  }
   e.innerHTML='<div class="eq-card">'+
-    '<div class="eq-top"><span>🧪 '+SKILLS[it.sk]+'</span><span>'+(qIdx+1)+' / '+queue.length+'</span></div>'+
+    '<div class="eq-top"><span>🧪 '+esc(SKILLS[it.sk])+stBadge+'</span><span>'+(qIdx+1)+' / '+queue.length+'</span></div>'+
     '<div class="eq-prog"><div class="fill" style="width:'+((qIdx+1)/queue.length*100)+'%"></div></div>'+
     '<div class="eq-q">'+qHTML+'</div>'+
+    '<p style="font-size:.82rem;opacity:.65;margin:-10px 0 14px">'+instr+'</p>'+
     body+
     '<div id="eqFb"></div>'+
     '<div class="eq-actions"><button class="btn btn-ghost btn-sm" onclick="quitRound(this)">Quit round</button></div>'+
   '</div>';
   if(it.type==='fill')setTimeout(function(){var i=document.getElementById('fillInput');if(i)i.focus();},100);
+  if(it.type==='listen'||it.type==='speak')setTimeout(function(){playListen();},300);
 }
-function submitAnswer(optIdx){
+function playListen(btn){
   const it=curItem;if(!it)return;
-  const correct = it.type==='fill' ? checkFill() : optIdx===it.a;
-  const isCorrect = correct;
+  const txt=it.audio||it.q;
+  speak(txt);
+  if(btn){btn.textContent='🔊 Playing…';setTimeout(function(){btn.textContent='🔊 Play audio';},1800);}
+}
+// --- ordering support ---
+let curOrderSeq=[],curOrderDone=0;
+function tapOrder(j){
+  const it=curItem;if(!it||it.type!=='order')return;
+  const btns=document.querySelectorAll('.order-opt');
+  if(btns[j].classList.contains('used'))return;
+  if(curOrderSeq.length>=it.steps.length)return;
+  btns[j].classList.add('used');
+  curOrderSeq.push(j);
+  const seq=document.getElementById('orderSeq');
+  seq.innerHTML=curOrderSeq.map(function(idx,i){return '<span class="order-chip">'+(i+1)+'. '+esc(it.steps[idx])+'</span>';}).join('');
+}
+function gradeOrder(){
+  const it=curItem;if(!it||it.type!=='order')return;
+  if(curOrderSeq.length!==it.steps.length){toast('Order all the steps first!','warn');return;}
+  const correct=curOrderSeq.every(function(idx,i){return idx===i;});
+  submitAnswer(correct?-999:null,true);
+}
+let curGrade=null;
+function submitAnswer(optIdx, orderCorrect){
+  const it=curItem;if(!it)return;
+  const isCorrect = it.type==='fill' ? checkFill()
+    : it.type==='order' ? !!orderCorrect
+    : (optIdx===it.a);
   const fbEl=document.getElementById('eqFb');
-  if(it.type!=='fill'){
+  if(it.type!=='fill'&&it.type!=='order'){
     document.querySelectorAll('.eq-opt').forEach((b,i)=>{b.disabled=true;if(i===it.a)b.classList.add('correct');else if(i===optIdx)b.classList.add('wrong');});
+  }
+  if(it.type==='order'){
+    document.querySelectorAll('.order-opt').forEach((b)=>{b.disabled=true;});
   }
   let fbHtml = isCorrect
     ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+(it.fb||'')+'</div>'
@@ -972,7 +1063,7 @@ function submitAnswer(optIdx){
   fbEl.innerHTML=fbHtml;
   if(isCorrect){miniConfetti();}
   // record
-  recordAnswer(it.sk,isCorrect);
+  recordAnswer(it.sk,isCorrect,skillTypeOf(it));
   if(!isCorrect){
     const qi=ITEMS.indexOf(it);
     if(qi>=0&&!state.review.includes(qi))state.review.push(qi);
@@ -981,10 +1072,41 @@ function submitAnswer(optIdx){
   const hadXP = isCorrect ? 10 : 2;
   addXP(hadXP);
   Logger.score('practice',it.sk,isCorrect,null,{question:norm(it.q)});
+  // Server-side verification (full anti-cheat). Skips self-assessed/sequencing types.
+  if(it.type!=='order'&&it.type!=='speak'){
+    verifyServerAnswer(it, optIdx).then(function(d){
+    if(!d)return;
+    if(d.ok&&typeof d.totalXp==='number'){
+      state.totalXp=d.totalXp;state.xp=d.xp;state.level=d.level;state.answered=d.answered;state.correct=d.correct;
+      if(d.mastery&&it.sk&&d.mastery[it.sk])state.mastery[it.sk]=d.mastery[it.sk];
+      persist();renderHUD();
+    }
+    if(d.correct!==undefined&&d.correct!==isCorrect){
+      // server overrides a mismatch (should not normally happen) — resurface verdict
+      const fb2=document.getElementById('eqFb');
+      if(fb2)fb2.innerHTML = d.correct
+        ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+esc(d.fb||it.fb||'')+'</div>'
+        : '<div class="eq-fb no">❌ <b>Not quite.</b> '+esc(d.fb||it.fb||'')+'</div>';
+    }
+    });
+  }
   syncToFirestore();
   // next
   document.getElementById('eqFb').scrollIntoView({behavior:'smooth',block:'nearest'});
   setTimeout(()=>{qIdx++;renderItem();},1600);
+}
+// Ask the server to verify this answer (authoritative). Returns null when offline.
+function verifyServerAnswer(it, choice){
+  return new Promise(function(resolve){
+    if(!FB_CONFIGURED||typeof firebase==='undefined'||!firebase.functions||!auth||!auth.currentUser){resolve(null);return;}
+    const key=String(it.q).toLowerCase().replace(/\s+/g,' ').trim().replace(/[.,!?;:'"()]/g,'');
+    const payload={key:key,skill:it.sk,choice:(choice==null?null:choice),fill:(it.type==='fill'?(document.getElementById('fillInput')?document.getElementById('fillInput').value:'') : null)};
+    try{
+      firebase.functions(firebaseApp).httpsCallable('scienceVerifyAnswer')(payload)
+        .then(function(r){resolve((r&&r.data)||null);})
+        .catch(function(e){Logger.push('warn','sync','scienceVerifyAnswer:fallback',{skill:it.sk},{err:e&&e.message},{code:e&&e.code,message:e&&e.message},null);resolve(null);});
+    }catch(e){resolve(null);}
+  });
 }
 function checkFill(){
   const it=curItem;
@@ -1153,6 +1275,12 @@ function renderDash(){
     '</div>'+
     '<h2 style="margin:28px 0 14px;font-size:1.25rem">Explore</h2>'+
     '<div class="grid cards-3">'+cards+'</div>'+
+    '<h2 style="margin:28px 0 14px;font-size:1.25rem">Your Language Skills in Science</h2>'+
+    '<div class="card" style="cursor:default">'+['R','L','S','W'].map(function(t){
+      const pct=skillPct(t);const seen=(state.skillTypeMastery||{})[t]?state.skillTypeMastery[t].seen:0;
+      const icons={R:'📖',L:'🎧',S:'🗣️',W:'✍️'};
+      return '<div class="mastery-row"><span class="mastery-label" style="width:150px">'+icons[t]+' '+SKILL_TYPES[t]+'</span><div class="mastery-bar"><div class="fill" style="width:'+pct+'%"></div></div><span class="mastery-pct" style="color:'+(pct>=70?'var(--ok)':pct>=40?'var(--gold-dk)':'var(--bad)')+'">'+pct+'%</span><span style="font-size:.72rem;color:#8a8a8a;width:52px;text-align:right">'+seen+' Qs</span></div>';
+    }).join('')+'</div>'+
     '<h2 style="margin:28px 0 14px;font-size:1.25rem">Your Skill Garden</h2>'+
     '<div class="card" style="cursor:default">'+skillsProgress+'</div>';
 }
@@ -1521,6 +1649,7 @@ function buildSyncBody(){
     bestExamScore:state.bestExamScore!=null?state.bestExamScore:null,
     badges:state.badges,
     mastery:state.mastery,
+    skillTypeMastery:state.skillTypeMastery||{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}},
     skillLvl:state.skillLvl,
     cardBox:state.cardBox||{},
     updatedAt:new Date().toISOString()
