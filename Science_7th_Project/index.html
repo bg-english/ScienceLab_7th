@@ -540,7 +540,7 @@ const SKILLS={
 };
 
 /* ===== state ===== */
-let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},cardSrs:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}}};
+let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},cardSrs:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}},compMastery:{}};
 if(state.lastExamScore===undefined)state.lastExamScore=null;
 if(state.bestExamScore===undefined)state.bestExamScore=null;
 if(!state.examHistory)state.examHistory=[];
@@ -553,6 +553,7 @@ if(!state.badges)state.badges=[];
 if(!state.cardBox)state.cardBox={};
 if(!state.cardSrs)state.cardSrs={};
 if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};
+if(!state.compMastery)state.compMastery={};
 if(state.totalXp===undefined){
   var retroXp=0;
   for(var lv=1;lv<state.level;lv++){retroXp+=(lv<=3?100:lv<=6?150:lv<=9?200:lv<=12?300:lv<=15?400:500);}
@@ -724,7 +725,7 @@ function checkBadges(){
 
 /* ===== mastery ===== */
 function masteryPct(s){const m=state.mastery[s];return m&&m.seen?Math.round(m.correct/m.seen*100):0;}
-function recordAnswer(skill,correct,stype){state.answered++;if(correct)state.correct++;const m=state.mastery[skill];m.seen++;if(correct){m.correct++;addSkillXP(skill,15);}else{addSkillXP(skill,3);}if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};const t=stype||skillTypeOf({type:'mc'});const st=state.skillTypeMastery[t]||(state.skillTypeMastery[t]={seen:0,correct:0});st.seen++;if(correct)st.correct++;persist();if(state.correct===1)award('first');checkBadges();checkSkillBadges(skill);}
+function recordAnswer(skill,correct,stype,comp){state.answered++;if(correct)state.correct++;const m=state.mastery[skill];m.seen++;if(correct){m.correct++;addSkillXP(skill,15);}else{addSkillXP(skill,3);}if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};const t=stype||skillTypeOf({type:'mc'});const st=state.skillTypeMastery[t]||(state.skillTypeMastery[t]={seen:0,correct:0});st.seen++;if(correct)st.correct++;if(!state.compMastery)state.compMastery={};const c=comp||compOf({type:'mc'});const cm=state.compMastery[c]||(state.compMastery[c]={seen:0,correct:0});cm.seen++;if(correct)cm.correct++;persist();if(state.correct===1)award('first');checkBadges();checkSkillBadges(skill);}
 function skillPct(t){const st=(state.skillTypeMastery||{})[t];return st&&st.seen?Math.round(st.correct/st.seen*100):0;}
 
 /* ===== DATA: LESSONS (from the temario) ===== */
@@ -781,6 +782,17 @@ function skillTypeOf(it){
   return 'R'; // mc, tf, order, read → Reading
 }
 const SKILL_TYPES={R:'Reading',L:'Listening',S:'Speaking',W:'Writing'};
+
+// Science competencies (PISA science literacy + NGSS practices), heuristic map
+// by question type. Tracked to show "what kind of thinking" each student trains.
+const COMPS={EXPLAIN:'Explain phenomena',INTERPRET:'Interpret data/claims',OBTAIN:'Obtain & use information',COMMUNICATE:'Communicate ideas'};
+function compOf(it){
+  if(it.type==='tf')return 'INTERPRET';
+  if(it.type==='listen')return 'OBTAIN';
+  if(it.type==='speak'||it.type==='fill')return 'COMMUNICATE';
+  return 'EXPLAIN'; // mc, order → explicar procesos
+}
+function compPct(c){const m=(state.compMastery||{})[c];return m&&m.seen?Math.round(m.correct/m.seen*100):0;}
 const ITEMS=[
   /* Photosynthesis Process */
   {"sk":"photo-process","type":"mc","q":"Photosynthesis is the process plants use to make their own ___ .","o":["water","food","soil","air"],"a":1,"fb":"Photosynthesis makes <b>food</b> (glucose) — plants are producers!","hint":"Plants don't hunt or shop — they make it themselves."},
@@ -1086,7 +1098,7 @@ function submitAnswer(optIdx, orderCorrect){
   fbEl.innerHTML=fbHtml;
   if(isCorrect){miniConfetti();}
   // record
-  recordAnswer(it.sk,isCorrect,skillTypeOf(it));
+  recordAnswer(it.sk,isCorrect,skillTypeOf(it),compOf(it));
   if(!isCorrect){
     const qi=ITEMS.indexOf(it);
     if(qi>=0&&!state.review.includes(qi))state.review.push(qi);
@@ -1303,6 +1315,12 @@ function renderDash(){
       const pct=skillPct(t);const seen=(state.skillTypeMastery||{})[t]?state.skillTypeMastery[t].seen:0;
       const icons={R:'📖',L:'🎧',S:'🗣️',W:'✍️'};
       return '<div class="mastery-row"><span class="mastery-label" style="width:150px">'+icons[t]+' '+SKILL_TYPES[t]+'</span><div class="mastery-bar"><div class="fill" style="width:'+pct+'%"></div></div><span class="mastery-pct" style="color:'+(pct>=70?'var(--ok)':pct>=40?'var(--gold-dk)':'var(--bad)')+'">'+pct+'%</span><span style="font-size:.72rem;color:#8a8a8a;width:52px;text-align:right">'+seen+' Qs</span></div>';
+    }).join('')+'</div>'+
+    '<h2 style="margin:28px 0 14px;font-size:1.25rem">Your Science Competencies (PISA/NGSS)</h2>'+
+    '<div class="card" style="cursor:default">'+Object.keys(COMPS).map(function(c){
+      const pct=compPct(c);const seen=(state.compMastery||{})[c]?state.compMastery[c].seen:0;
+      const icons={EXPLAIN:'🔬',INTERPRET:'📊',OBTAIN:'🔎',COMMUNICATE:'💬'};
+      return '<div class="mastery-row"><span class="mastery-label" style="width:220px">'+icons[c]+' '+COMPS[c]+'</span><div class="mastery-bar"><div class="fill" style="width:'+pct+'%"></div></div><span class="mastery-pct" style="color:'+(pct>=70?'var(--ok)':pct>=40?'var(--gold-dk)':'var(--bad)')+'">'+pct+'%</span><span style="font-size:.72rem;color:#8a8a8a;width:52px;text-align:right">'+seen+' Qs</span></div>';
     }).join('')+'</div>'+
     '<h2 style="margin:28px 0 14px;font-size:1.25rem">Your Skill Garden</h2>'+
     '<div class="card" style="cursor:default">'+skillsProgress+'</div>';
@@ -1724,6 +1742,7 @@ function buildSyncBody(){
     badges:state.badges,
     mastery:state.mastery,
     skillTypeMastery:state.skillTypeMastery||{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}},
+    compMastery:state.compMastery||{},
     skillLvl:state.skillLvl,
     cardBox:state.cardBox||{},
     cardSrs:state.cardSrs||{},

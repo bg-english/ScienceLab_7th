@@ -672,6 +672,29 @@ function render() {
     ST_LABELS.map(([k, l]) => { const a = stAgg[k]; const p = a.seen ? Math.round(a.correct / a.seen * 100) : null; return `${l}: <b>${p != null ? p + '%' : '—'}</b>`; }).join(' · ') +
     `</div>`;
 
+  // Science competencies heatmap (PISA/NGSS)
+  html += `<div class="section-title">Science Competencies (PISA/NGSS)</div>`;
+  const COMP_LABELS = [['EXPLAIN','🔬 Explain phenomena'],['INTERPRET','📊 Interpret data/claims'],['OBTAIN','🔎 Obtain & use info'],['COMMUNICATE','💬 Communicate ideas']];
+  const compAgg = {};
+  COMP_LABELS.forEach(([k]) => compAgg[k] = { seen: 0, correct: 0 });
+  html += `<div class="heatmap-wrap"><table>
+    <thead><tr><th style="text-align:left">Student</th>`;
+  COMP_LABELS.forEach(([k, l]) => html += `<th>${l}</th>`);
+  html += `</tr></thead><tbody>`;
+  for (const s of sorted) {
+    html += `<tr><td>${esc(s.name) || '---'}</td>`;
+    for (const [k] of COMP_LABELS) {
+      const m = mastery(s.compMastery, k);
+      if (m.seen > 0) { compAgg[k].seen += m.seen; compAgg[k].correct += Math.round(m.pct * m.seen / 100); }
+      html += `<td class="${heatClass(m.pct)}">${m.pct != null ? m.pct + '%' : '-'}</td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table></div>`;
+  html += `<div style="font-size:12px;color:#8a8a8a;margin-bottom:10px">Class accuracy by competency: ` +
+    COMP_LABELS.map(([k, l]) => { const a = compAgg[k]; const p = a.seen ? Math.round(a.correct / a.seen * 100) : null; return `${l}: <b>${p != null ? p + '%' : '—'}</b>`; }).join(' · ') +
+    `</div>`;
+
   // Weakness analysis
   const skillStats = SKILLS.map(sk => {
     let totalSeen = 0, totalCorrect = 0;

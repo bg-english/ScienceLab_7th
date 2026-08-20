@@ -2,6 +2,18 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [4.2.0] — 2026-08-19 — "Competencias científicas (PISA/NGSS)"
+
+### Added
+- **Competency mapping per item** (PISA science literacy + NGSS practices):
+  `EXPLAIN` (explicar fenómenos), `INTERPRET` (interpretar datos/afirmaciones),
+  `OBTAIN` (obtener y usar información), `COMMUNICATE` (comunicar ideas).
+  Derivado por tipo de pregunta; cada respuesta acumula `compMastery`.
+- **Student (Home):** "Your Science Competencies (PISA/NGSS)" — barras por
+  competencia con % y nº de ítems.
+- **Teacher (Dashboard):** heatmap estudiante × competencia + precisión de clase
+  por competencia. `compMastery` se guarda y sincroniza en cada score.
+
 ## [4.1.0] — 2026-08-19 — "SM-2 + Rúbricas de escritura"
 
 ### Added — Spaced repetition SM-2 (flashcards)
