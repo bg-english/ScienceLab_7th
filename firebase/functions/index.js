@@ -447,16 +447,27 @@ exports.scienceVerifyAnswer = onCall({}, async (request) => {
   const key = normText(data.key || data.q || '');
   const it = BANK_BY_KEY.get(key);
   if (!it) throw new HttpsError('not-found', 'Question not found in the server bank.');
-  if (it.type === 'order' || it.type === 'speak') throw new HttpsError('invalid-argument', 'This question type is not server-verifiable.');
+  // Types graded interactively on the client (arrangements/simulations/self-assessed)
+  if (['order','timeline','match','cat','matrix','label','sim','branch','read','speak'].includes(it.type)) {
+    throw new HttpsError('invalid-argument', 'This question type is not server-verifiable.');
+  }
   const skill = String(data.skill || it.sk || '').slice(0, 40);
   if (!VALID_SKILLS.includes(skill)) throw new HttpsError('invalid-argument', 'Unknown skill.');
-  const stype = String(it.skillType || (it.type === 'fill' ? 'W' : 'R')).slice(0, 1) || 'R';
+  const stype = String(it.skillType || (it.type === 'fill' || it.type === 'error' || it.type === 'scramble' ? 'W' : it.type === 'dict' || it.type === 'listen' ? 'L' : 'R')).slice(0, 1) || 'R';
 
   let correct = false;
-  if (it.type === 'fill') {
-    const val = normText(data.fill || '');
-    const ans = normText(it.a || '');
-    correct = val === ans;
+  if (['fill','error','dict'].includes(it.type)) {
+    correct = normText(data.fill || '') === normText(it.a || '');
+  } else if (it.type === 'ms') {
+    const sel = Array.isArray(data.selected) ? data.selected.map(Number).sort((a, b) => a - b) : [];
+    const tgt = (Array.isArray(it.a) ? it.a : []).map(Number).sort((a, b) => a - b);
+    correct = sel.length === tgt.length && sel.every((v, i) => v === tgt[i]);
+  } else if (it.type === 'cloze') {
+    const answers = data.answers && typeof data.answers === 'object' ? data.answers : {};
+    const exp = Array.isArray(it.a) ? it.a : [];
+    correct = exp.every((w, i) => String(answers[i + 1] || '').toLowerCase() === String(w).toLowerCase());
+  } else if (it.type === 'scramble') {
+    correct = normText(data.word || '') === normText(it.word || '');
   } else {
     correct = Number(data.choice) === Number(it.a);
   }

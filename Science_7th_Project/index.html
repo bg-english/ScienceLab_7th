@@ -155,6 +155,58 @@ button{font-family:'Lexend';cursor:pointer}
 .eq-audio{text-align:center}
 .eq-speak{text-align:center}
 .eq-audio .eq-opts,.eq-speak .eq-opts{text-align:left}
+/* ms */
+.ms-opt.selected{background:var(--green);border-color:var(--green);color:#fff}
+/* match */
+.match-cols{display:flex;gap:12px;flex-wrap:wrap}
+.match-left,.match-right{flex:1;min-width:200px;display:flex;flex-direction:column;gap:8px}
+.match-l,.match-r{width:100%;text-align:left}
+.match-l.sel{border-color:var(--blue);background:var(--blue-lt)}
+.match-r.used{opacity:.5;pointer-events:none}
+.match-pairs{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.match-chip{background:var(--leaf-lt);border:2px solid var(--leaf);border-radius:10px;padding:6px 10px;font-size:.8rem;font-weight:600;color:var(--green-dk)}
+/* cloze */
+.cloze-sel{font-family:'Lexend';font-size:.95rem;padding:6px 8px;border-radius:10px;border:2px solid var(--line);background:var(--paper);color:var(--ink);margin:0 4px}
+/* cat */
+.cat-bank{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.cat-item{font-size:.9rem;padding:10px 14px}
+.cat-item.sel{border-color:var(--blue);background:var(--blue-lt)}
+.cat-groups{display:flex;gap:12px;flex-wrap:wrap}
+.cat-group{flex:1;min-width:180px;background:var(--paper);border:2px dashed var(--line);border-radius:14px;padding:10px;min-height:110px}
+.cat-title{font-weight:700;font-size:.9rem;margin-bottom:8px;color:var(--green-dk)}
+.cat-zone{display:flex;flex-wrap:wrap;gap:6px}
+.cat-dropped{background:var(--leaf-lt);border:2px solid var(--leaf);color:var(--green-dk);border-radius:10px;padding:5px 10px;font-size:.82rem;font-weight:600;cursor:pointer}
+.cat-dropped.bad{border-color:var(--bad);background:#fbe4e6;color:var(--bad)}
+/* matrix */
+.matrix-tbl{width:100%;border-collapse:collapse;font-size:.85rem}
+.matrix-tbl th,.matrix-tbl td{border:1px solid var(--line);padding:8px;text-align:center}
+.matrix-btn{width:30px;height:30px;border-radius:8px;border:2px solid var(--line);background:var(--paper);color:var(--ok);font-weight:800;cursor:pointer}
+.matrix-btn.selected{background:var(--green);color:#fff;border-color:var(--green)}
+/* scramble */
+.scramble-seq{display:flex;gap:6px;min-height:34px;margin-bottom:12px;flex-wrap:wrap}
+.scramble-chip{background:var(--green);color:#fff;border-radius:8px;width:34px;height:34px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem}
+.scramble-bank{display:flex;gap:8px;flex-wrap:wrap}
+.scramble-let{width:42px;height:42px;border-radius:10px;border:2px solid var(--line);background:var(--paper);font-size:1.1rem;font-weight:800;color:var(--ink);cursor:pointer}
+.scramble-let:hover{border-color:var(--green)}
+.scramble-let.used{opacity:.4;pointer-events:none}
+/* label diagram */
+.resp-svg{width:100%;max-width:300px;margin:0 auto;display:block;background:var(--paper);border:2px solid var(--line);border-radius:14px}
+.resp-svg .lbl{fill:#E2F3E8;stroke:#1F8A4C;stroke-width:2;cursor:pointer;transition:fill .15s}
+.resp-svg .lbl:hover{fill:#CBEAD3}
+.resp-svg .lbl.sel{fill:#E9A72C;stroke:#BE8418}
+.resp-svg .lbl-t{font-size:11px;fill:#0F3D2E;font-weight:600;pointer-events:none}
+.label-pick{display:inline-block;background:var(--green-lt);border-radius:10px;padding:6px 12px;font-size:.85rem;margin-top:8px}
+/* sim */
+.eq-sim .sim-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;font-size:.9rem;font-weight:600}
+.eq-sim input[type=range]{flex:1;accent-color:var(--green)}
+.sim-out{margin-top:12px;background:var(--blue-lt);border:2px solid var(--blue);border-radius:12px;padding:12px;font-size:.9rem;line-height:1.5}
+.sim-out.good{background:var(--green-lt);border-color:var(--green)}
+/* read */
+.read-passage{background:var(--paper);border:2px solid var(--line);border-radius:14px;padding:16px;font-size:1.05rem;line-height:1.7;margin-bottom:12px}
+.eq-read .btn{margin:0 6px 6px 0}
+.eq-read .btn.rec{background:var(--bad);color:#fff}
+/* video */
+.eq-video .interv-video{max-width:520px;margin:0 auto 14px}
 .eq-fb{margin-top:18px;padding:14px 18px;border-radius:14px;font-size:.9rem;animation:fade .3s}
 .eq-fb.ok{background:var(--green-lt);border:2px solid var(--ok)}
 .eq-fb.no{background:#fbe4e6;border:2px solid var(--bad)}
@@ -786,10 +838,10 @@ const LESSONS=[
 // skillType: which language skill each item trains (R=Reading, L=Listening,
 // S=Speaking, W=Writing). Derived for legacy items; explicit on new ones.
 function skillTypeOf(it){
-  if(it.type==='fill'||it.type==='write')return 'W';
-  if(it.type==='listen')return 'L';
-  if(it.type==='speak')return 'S';
-  return 'R'; // mc, tf, order, read → Reading
+  if(it.type==='fill'||it.type==='write'||it.type==='error'||it.type==='scramble')return 'W';
+  if(it.type==='listen'||it.type==='dict')return 'L';
+  if(it.type==='speak'||it.type==='read')return 'S';
+  return 'R'; // mc, tf, order, ms, match, cloze, cat, matrix, label, timeline, sim, branch, video → Reading
 }
 const SKILL_TYPES={R:'Reading',L:'Listening',S:'Speaking',W:'Writing'};
 
@@ -797,9 +849,11 @@ const SKILL_TYPES={R:'Reading',L:'Listening',S:'Speaking',W:'Writing'};
 // by question type. Tracked to show "what kind of thinking" each student trains.
 const COMPS={EXPLAIN:'Explain phenomena',INTERPRET:'Interpret data/claims',OBTAIN:'Obtain & use information',COMMUNICATE:'Communicate ideas'};
 function compOf(it){
-  if(it.type==='tf')return 'INTERPRET';
-  if(it.type==='listen')return 'OBTAIN';
-  if(it.type==='speak'||it.type==='fill')return 'COMMUNICATE';
+  if(it.type==='tf'||it.type==='matrix')return 'INTERPRET';
+  if(it.type==='listen'||it.type==='dict')return 'OBTAIN';
+  if(it.type==='speak'||it.type==='read'||it.type==='fill'||it.type==='error'||it.type==='scramble'||it.type==='write')return 'COMMUNICATE';
+  if(it.type==='sim'||it.type==='branch')return 'EXPLAIN';
+  if(it.type==='match'||it.type==='cat'||it.type==='cloze'||it.type==='label'||it.type==='timeline')return 'EXPLAIN';
   return 'EXPLAIN'; // mc, order → explicar procesos
 }
 function compPct(c){const m=(state.compMastery||{})[c];return m&&m.seen?Math.round(m.correct/m.seen*100):0;}
@@ -897,7 +951,30 @@ const ITEMS=[
   {"sk":"resp-vocab","type":"speak","word":"oxygen","q":"Say the word 'oxygen'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Great — keep practicing the word 'oxygen'!","skillType":"S"},
   {"sk":"resp-vocab","type":"speak","word":"photosynthesis","q":"Say the word 'photosynthesis'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Nice! 'Photosynthesis' is a long word — great job!","skillType":"S"},
   {"sk":"resp-vocab","type":"speak","word":"diaphragm","q":"Say the word 'diaphragm'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Excellent! The diaphragm is the breathing muscle.","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Say the word 'alveoli'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"}
+  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Say the word 'alveoli'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"},
+  /* ===== NEW TYPES: multi-select / matching / cloze / classify / matrix ===== */
+  {"sk":"human-organs","type":"ms","q":"Select ALL the organs of the respiratory system.","o":["Nose","Heart","Trachea","Stomach","Lungs"],"a":[0,2,4],"fb":"The respiratory organs include the <b>nose</b>, <b>trachea</b> and <b>lungs</b>.","hint":"Not the heart or the stomach.","skillType":"R"},
+  {"sk":"photo-outputs","type":"ms","q":"Select ALL the products of photosynthesis.","o":["Glucose","Oxygen","Carbon dioxide","Water","Sunlight"],"a":[0,1],"fb":"Photosynthesis produces <b>glucose</b> and <b>oxygen</b>.","hint":"One is a sugar, the other is a gas we breathe.","skillType":"R"},
+  {"sk":"resp-vocab","type":"match","q":"Match each term with its meaning.","pairs":[["Trachea","The windpipe"],["Alveoli","Tiny air sacs"],["Diaphragm","Breathing muscle"],["Bronchi","Tubes into the lungs"]],"fb":"Great matching — these are the key respiratory words!","skillType":"R"},
+  {"sk":"gas-exchange","type":"match","q":"Match each gas with its direction.","pairs":[["Oxygen","Into the blood"],["Carbon dioxide","Out of the blood"],["Air in","Inhaled"],["Air out","Exhaled"]],"fb":"Oxygen goes into the blood; carbon dioxide leaves it.","skillType":"R"},
+  {"sk":"photo-inputs","type":"cloze","q":"Plants need {1}, {2} and {3} to make their own food.","bank":["sunlight","water","carbon dioxide","oxygen","soil"],"a":["sunlight","water","carbon dioxide"],"fb":"The three inputs are sunlight, water and carbon dioxide.","skillType":"R"},
+  {"sk":"plant-resp","type":"cloze","q":"Respiration releases {1} from glucose, using {2}, and it happens {3}.","bank":["energy","oxygen","all the time","only at night","water"],"a":["energy","oxygen","all the time"],"fb":"Respiration releases energy from glucose using oxygen, all the time.","skillType":"R"},
+  {"sk":"photo-inputs","type":"cat","q":"Classify each item: is it an INPUT or an OUTPUT of photosynthesis?","groups":{"Inputs":["Sunlight","Water","Carbon dioxide"],"Outputs":["Oxygen","Glucose"]},"fb":"Inputs: sunlight, water, CO₂. Outputs: oxygen, glucose.","skillType":"R"},
+  {"sk":"plant-resp","type":"cat","q":"Classify each process: is it PHOTOSYNTHESIS or RESPIRATION?","groups":{"Photosynthesis":["Makes glucose","Needs sunlight","Releases oxygen"],"Respiration":["Releases energy","Uses oxygen","Happens all the time"]},"fb":"Photosynthesis builds food with light; respiration releases energy all the time.","skillType":"R"},
+  {"sk":"human-organs","type":"matrix","q":"Say which system each organ belongs to.","cols":["Respiratory","Digestive"],"rows":[["Trachea","Respiratory"],["Lungs","Respiratory"],["Stomach","Digestive"],["Esophagus","Digestive"]],"fb":"Trachea and lungs are respiratory; stomach and esophagus are digestive.","skillType":"R"},
+  /* ===== NEW TYPES: error correction / dictation / scramble / label / timeline / sim / branch / read ===== */
+  {"sk":"breathing","type":"error","q":"Fix the mistake: 'When you inhale, the diaphragm moves up.'","a":"When you inhale, the diaphragm moves down.","fb":"On inhalation the diaphragm flattens (moves down).","hint":"Down = more space for air.","skillType":"W"},
+  {"sk":"gas-exchange","type":"error","q":"Fix the mistake: 'Oxygen passes from the blood into the alveoli.'","a":"Oxygen passes from the alveoli into the blood.","fb":"Oxygen goes from the alveoli into the blood.","hint":"Which way does oxygen travel?","skillType":"W"},
+  {"sk":"resp-vocab","type":"dict","audio":"photosynthesis","q":"Listen and type the Science word you hear. (Hint: it starts with 'ph'.)","a":"photosynthesis","fb":"That's right — photo (light) + synthesis (making).","skillType":"L"},
+  {"sk":"resp-vocab","type":"dict","audio":"diaphragm","q":"Listen and type the Science word you hear. (Hint: it starts with 'di'.)","a":"diaphragm","fb":"Great — the diaphragm controls breathing.","skillType":"L"},
+  {"sk":"resp-vocab","type":"scramble","word":"oxygen","q":"Unscramble the letters to form the 6-letter Science word.","hint":"We breathe this gas in; plants release it.","fb":"Oxygen — the gas we breathe in!","skillType":"W"},
+  {"sk":"resp-vocab","type":"scramble","word":"stomata","q":"Unscramble the letters to form the 7-letter Science word.","hint":"Tiny pores on leaves.","fb":"Stomata — the tiny pores on leaves.","skillType":"W"},
+  {"sk":"human-organs","type":"label","q":"Tap the part that carries air to the lungs (the windpipe).","diagram":"resp","target":"trachea","fb":"The trachea (windpipe) carries air to the lungs.","skillType":"R"},
+  {"sk":"human-organs","type":"label","q":"Tap the part where oxygen passes into the blood.","diagram":"resp","target":"lungs","fb":"Gas exchange happens in the lungs (alveoli).","skillType":"R"},
+  {"sk":"breathing","type":"timeline","q":"Place these events on the timeline in the correct order.","steps":["Air enters the nose","Air passes through the trachea","Air reaches the lungs","Oxygen enters the blood"],"fb":"Air goes nose → trachea → lungs → oxygen into the blood.","skillType":"R"},
+  {"sk":"photo-process","type":"sim","q":"Simulation: explore the plant lab — move the sliders and see what the plant needs.","fb":"Great exploring! Plants need sunlight, water and CO₂ to make food.","skillType":"R"},
+  {"sk":"photo-process","type":"branch","q":"A plant is in a dark room for a week. What is the BEST thing to do?","choices":[{"t":"Move it near a sunny window","fb":"Correct! Without sunlight the plant cannot photosynthesize."},{"t":"Water it even more","fb":"Water does not replace sunlight — it still cannot make food."},{"t":"Put it in the fridge","fb":"Cold makes things worse; it needs light."}],"a":0,"skillType":"R"},
+  {"sk":"resp-care","type":"read","text":"I take care of my lungs by exercising, breathing clean air and never smoking. Exercise makes my heart and lungs strong. I praise God with every breath, because everything that breathes praises the Lord.","fb":"Great reading! Speaking practice recorded.","skillType":"S"}
 ];
 
 /* ===== DATA: FLASHCARDS ===== */
@@ -1036,9 +1113,9 @@ function renderItem(){
     body='<div class="eq-opts"><button class="eq-opt" onclick="submitAnswer(0)">✅ True</button><button class="eq-opt" onclick="submitAnswer(1)">❌ False</button></div>';
     instr='Is the statement true or false?';
   }
-  else if(it.type==='order'){
+  else if(it.type==='order'||it.type==='timeline'){
     body='<div class="eq-order"><div id="orderSeq" class="order-seq"></div><div class="order-opts" id="orderOpts">'+it.steps.map(function(s,j){return '<button class="eq-opt order-opt" onclick="tapOrder('+j+')">'+(j+1)+'. '+esc(s)+'</button>';}).join('')+'</div><button class="btn btn-green" style="margin-top:14px" onclick="gradeOrder()">Check order ✔</button></div>';
-    instr='Tap the steps in the correct order, then press "Check order".';
+    instr=it.type==='timeline'?'Tap the events in order on the timeline, then press "Check".':'Tap the steps in the correct order, then press "Check order".';
     curOrderSeq=[];curOrderDone=0;
   }
   else if(it.type==='listen'){
@@ -1048,6 +1125,72 @@ function renderItem(){
   else if(it.type==='speak'){
     body='<div class="eq-speak"><button class="btn btn-gold" onclick="speak(\''+escAttr(it.word)+'\')">🔊 Model: say it too</button><div class="eq-opts" style="margin-top:12px">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div></div>';
     instr='Listen to the model, repeat it out loud, then rate yourself.';
+  }
+  else if(it.type==='ms'){
+    body='<div class="eq-ms" id="msBox">'+it.o.map((o,j)=>'<button class="eq-opt ms-opt" data-i="'+j+'" onclick="toggleMs('+j+')">'+esc(o)+'</button>').join('')+'</div><button class="btn btn-green" style="margin-top:14px" onclick="gradeMs()">Check ✔</button>';
+    instr='Select ALL the correct answers, then press "Check".';
+    curMsSel=[];
+  }
+  else if(it.type==='match'){
+    var L=it.pairs.map(function(p,i){return p[0];});
+    var R=shuffle(it.pairs.map(function(p,i){return {t:p[1],i:i};}));
+    body='<div class="eq-match"><div class="match-cols"><div class="match-left">'+L.map(function(l,j){return '<button class="eq-opt match-l" data-i="'+j+'" onclick="pickMatchL('+j+')">'+esc(l)+'</button>';}).join('')+'</div><div class="match-right">'+R.map(function(r){return '<button class="eq-opt match-r" data-i="'+r.i+'" onclick="pickMatchR(\''+r.i+'\')">'+esc(r.t)+'</button>';}).join('')+'</div></div><div id="matchPairs" class="match-pairs"></div><button class="btn btn-green" style="margin-top:14px" onclick="gradeMatch()">Check ✔</button></div>';
+    instr='Tap a term on the left, then its meaning on the right. Then press "Check".';
+    curMatchSel={left:null,right:null};curMatchPairs=[];
+  }
+  else if(it.type==='cloze'){
+    var n=1,cls='';
+    qHTML=it.q.replace(/\{(\d+)\}/g,function(m,idx){
+      var opts='<option value="">—</option>'+it.bank.map(function(b){return '<option value="'+escAttr(b)+'">'+esc(b)+'</option>';}).join('');
+      return '<span class="blank"></span> <select class="cloze-sel" data-n="'+idx+'" onchange="curCloze['+idx+']=this.value">'+opts+'</select>';
+    });
+    body='<div class="eq-cloze"></div><button class="btn btn-green" style="margin-top:14px" onclick="gradeCloze()">Check ✔</button>';
+    instr='Choose the right word for each blank, then press "Check".';
+    curCloze={};
+  }
+  else if(it.type==='cat'){
+    var all=[];Object.keys(it.groups).forEach(function(g){it.groups[g].forEach(function(x){all.push(x);});});
+    body='<div class="eq-cat"><div class="cat-bank">'+shuffle(all).map(function(x,i){return '<button class="eq-opt cat-item" data-x="'+escAttr(x)+'" onclick="pickCat(this,\''+escAttr(x)+'\')">'+esc(x)+'</button>';}).join('')+'</div><div class="cat-groups">'+Object.keys(it.groups).map(function(g){return '<div class="cat-group" data-g="'+escAttr(g)+'" onclick="dropCat(this,\''+escAttr(g)+'\')"><div class="cat-title">'+esc(g)+'</div><div class="cat-zone" id="catZone_'+escAttr(g)+'"></div></div>';}).join('')+'</div><button class="btn btn-green" style="margin-top:14px" onclick="gradeCat()">Check ✔</button></div>';
+    instr='Tap an item, then tap the group where it belongs.';
+    curCat={item:null};
+  }
+  else if(it.type==='matrix'){
+    body='<div class="eq-matrix"><table class="matrix-tbl"><thead><tr><th></th>'+it.cols.map(function(c){return '<th>'+esc(c)+'</th>';}).join('')+'</tr></thead><tbody>'+it.rows.map(function(r,ri){
+      return '<tr><td>'+esc(r[0])+'</td>'+it.cols.map(function(c,ci){return '<td><button class="matrix-btn" data-r="'+ri+'" data-c="'+ci+'" onclick="pickMatrix('+ri+','+ci+')">✓</button></td>';}).join('')+'</tr>';
+    }).join('')+'</tbody></table><button class="btn btn-green" style="margin-top:14px" onclick="gradeMatrix()">Check ✔</button></div>';
+    instr='Tap ✓ in the correct column for each row, then press "Check".';
+    curMatrix={};
+  }
+  else if(it.type==='error'||it.type==='dict'){
+    body='<div class="eq-fill">'+(it.type==='dict'?'<button class="btn btn-blue" style="margin-bottom:10px" onclick="playListen(this)">🔊 Play audio</button>':'')+'<input id="fillInput" placeholder="Type the correct text…" autocomplete="off" onkeydown="if(event.key===\'Enter\')submitAnswer()"></div>';
+    instr=it.type==='dict'?'Listen and type exactly what you hear, then press Enter.':'Type the corrected sentence, then press Enter.';
+  }
+  else if(it.type==='scramble'){
+    body='<div class="eq-scramble"><div id="scrambleSeq" class="scramble-seq"></div><div class="scramble-bank">'+shuffle(String(it.word).split('')).map(function(ch,i){return '<button class="scramble-let" data-ch="'+escAttr(ch)+'" onclick="tapScramble(this,\''+escAttr(ch)+'\')">'+esc(ch)+'</button>';}).join('')+'</div><button class="btn btn-green" style="margin-top:14px" onclick="gradeScramble()">Check ✔</button></div>';
+    instr='Tap the letters in the right order to form the word, then press "Check".';
+    curScramble=[];
+  }
+  else if(it.type==='label'){
+    body='<div class="eq-label">'+respSVG()+'<div id="labelPick"></div><button class="btn btn-green" style="margin-top:14px" onclick="gradeLabel()">Check ✔</button></div>';
+    instr='Tap the correct part on the diagram, then press "Check".';
+    curLabelPick=null;
+  }
+  else if(it.type==='sim'){
+    body='<div class="eq-sim"><div class="sim-row"><span>☀️ Sunlight</span><input type="range" min="0" max="100" value="50" oninput="runSim()" id="simSun"></div><div class="sim-row"><span>💧 Water</span><input type="range" min="0" max="100" value="50" oninput="runSim()" id="simWater"></div><div class="sim-row"><span>🫧 CO₂</span><input type="range" min="0" max="100" value="50" oninput="runSim()" id="simCo2"></div><div id="simOut" class="sim-out">Move the sliders and watch what the plant needs!</div><button class="btn btn-green" style="margin-top:14px" onclick="gradeSim()">Finish lab ✔</button></div>';
+    instr='Explore the simulation, then press "Finish lab".';
+    setTimeout(runSim,50);
+  }
+  else if(it.type==='branch'){
+    body='<div class="eq-branch">'+it.choices.map(function(c,i){return '<button class="eq-opt" onclick="submitAnswer('+i+')">'+esc(c.t)+'</button>';}).join('')+'</div>';
+    instr='Choose the best option.';
+  }
+  else if(it.type==='read'){
+    body='<div class="eq-read"><div class="read-passage">'+esc(it.text)+'</div><button class="btn btn-blue" onclick="speak(\''+escAttr(it.text)+'\')">🔊 Hear the model</button> <button class="btn btn-gold" onclick="startRecording(this)">🎙️ Record yourself</button> <button class="btn btn-ghost" id="readDoneBtn" style="display:none" onclick="finishRead()">✅ Done — I read it</button></div>';
+    instr='Read the passage aloud and record it (Speaking evidence), then press "Done".';
+  }
+  else if(it.type==='video'){
+    body='<div class="eq-video"><div class="interv-video"><iframe src="'+escAttr(it.video)+'" allowfullscreen loading="lazy"></iframe></div><div class="eq-opts">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div></div>';
+    instr='Watch the video, then choose the correct option.';
   }
   else{
     body='<div class="eq-opts">'+it.o.map((o,j)=>'<button class="eq-opt" onclick="submitAnswer('+j+')">'+o+'</button>').join('')+'</div>';
@@ -1062,8 +1205,8 @@ function renderItem(){
     '<div id="eqFb"></div>'+
     '<div class="eq-actions"><button class="btn btn-ghost btn-sm" onclick="quitRound(this)">Quit round</button></div>'+
   '</div>';
-  if(it.type==='fill')setTimeout(function(){var i=document.getElementById('fillInput');if(i)i.focus();},100);
-  if(it.type==='listen'||it.type==='speak')setTimeout(function(){playListen();},300);
+  if(it.type==='fill'||it.type==='error'||it.type==='dict')setTimeout(function(){var i=document.getElementById('fillInput');if(i)i.focus();},100);
+  if(it.type==='listen'||it.type==='speak'||it.type==='dict')setTimeout(function(){playListen();},300);
 }
 function playListen(btn){
   const it=curItem;if(!it)return;
@@ -1084,24 +1227,95 @@ function tapOrder(j){
   seq.innerHTML=curOrderSeq.map(function(idx,i){return '<span class="order-chip">'+(i+1)+'. '+esc(it.steps[idx])+'</span>';}).join('');
 }
 function gradeOrder(){
-  const it=curItem;if(!it||it.type!=='order')return;
+  const it=curItem;if(!it||(it.type!=='order'&&it.type!=='timeline'))return;
   if(curOrderSeq.length!==it.steps.length){toast('Order all the steps first!','warn');return;}
   const correct=curOrderSeq.every(function(idx,i){return idx===i;});
   submitAnswer(null,correct);
 }
+// --- multi-select (ms) ---
+let curMsSel=[];
+function toggleMs(j){const b=document.querySelector('.ms-opt[data-i="'+j+'"]');if(!b)return;const i=curMsSel.indexOf(j);if(i>=0){curMsSel.splice(i,1);b.classList.remove('selected');}else{curMsSel.push(j);b.classList.add('selected');}}
+function gradeMs(){const it=curItem;if(!it)return;if(!curMsSel.length){toast('Select at least one answer!','warn');return;}const sorted=curMsSel.slice().sort(function(a,b){return a-b;});const target=it.a.slice().sort(function(a,b){return a-b;});const correct=sorted.length===target.length&&sorted.every(function(v,i){return v===target[i];});submitAnswer(null,correct);}
+// --- matching (match) ---
+let curMatchSel=null,curMatchPairs=[];
+function pickMatchL(j){const b=document.querySelector('.match-l[data-i="'+j+'"]');if(!b)return;curMatchSel={type:'l',i:j};document.querySelectorAll('.match-l').forEach(function(x){x.classList.remove('sel');});b.classList.add('sel');}
+function pickMatchR(i){const b=document.querySelector('.match-r[data-i="'+i+'"]');if(!b)return;if(!curMatchSel||curMatchSel.type!=='l'){toast('Tap a term on the left first!','warn');return;}const li=curMatchSel.i;if(curMatchPairs.some(function(p){return p.l===li||p.r===Number(i);}))return;curMatchPairs.push({l:li,r:Number(i)});curMatchSel=null;document.querySelectorAll('.match-l,.match-r').forEach(function(x){x.classList.remove('sel');b.classList.add('used');});const it=curItem;document.getElementById('matchPairs').innerHTML=curMatchPairs.map(function(p){return '<span class="match-chip">'+esc(it.pairs[p.l][0])+' ↔ '+esc(it.pairs[p.l][1])+'</span>';}).join('');}
+function gradeMatch(){const it=curItem;if(!it)return;if(curMatchPairs.length!==it.pairs.length){toast('Match all the pairs first!','warn');return;}const correct=curMatchPairs.every(function(p){return p.l===p.r;});submitAnswer(null,correct);}
+// --- cloze (dropdown) ---
+let curCloze={};
+function gradeCloze(){const it=curItem;if(!it)return;if(Object.keys(curCloze).length!==it.a.length){toast('Choose a word for every blank!','warn');return;}const correct=it.a.every(function(w,i){return (curCloze[i+1]||'').toLowerCase()===String(w).toLowerCase();});submitAnswer(null,correct);}
+// --- classify (cat) ---
+let curCat=null;
+function pickCat(btn,x){curCat={x:x,btn:btn};document.querySelectorAll('.cat-item').forEach(function(b){b.classList.remove('sel');});btn.classList.add('sel');}
+function dropCat(zone,g){if(!curCat)return;const x=curCat.x;const it=curItem;const inGroup=it.groups[g]&&it.groups[g].indexOf(x)>=0;const el=document.createElement('span');el.className='cat-dropped'+(inGroup?'':' bad');el.textContent=x;el.dataset.x=x;el.dataset.g=g;el.onclick=function(){this.remove();};document.getElementById('catZone_'+g).appendChild(el);curCat.btn.classList.remove('sel');curCat=null;if(!inGroup)toast('Hmm — check which group that belongs to.','warn');}
+function gradeCat(){const it=curItem;if(!it)return;const placed=document.querySelectorAll('.cat-dropped');if(placed.length!==Object.keys(it.groups).reduce(function(n,g){return n+it.groups[g].length;},0)){toast('Place every item in a group!','warn');return;}let ok=true;placed.forEach(function(el){if(el.dataset.g){const g=el.dataset.g;if(!(it.groups[g]&&it.groups[g].indexOf(el.dataset.x)>=0))ok=false;}});submitAnswer(null,ok);}
+// --- matrix ---
+let curMatrix={};
+function pickMatrix(r,c){curMatrix[r]=c;const it=curItem;const rowBtns=document.querySelectorAll('.matrix-btn');rowBtns.forEach(function(b){if(Number(b.dataset.r)===r){b.classList.toggle('selected',Number(b.dataset.c)===c);}});}
+function gradeMatrix(){const it=curItem;if(!it)return;if(Object.keys(curMatrix).length!==it.rows.length){toast('Answer every row!','warn');return;}const correct=it.rows.every(function(r,i){const col=it.cols.indexOf(r[1]);return curMatrix[i]===col;});submitAnswer(null,correct);}
+// --- error correction / dictation ---
+function checkErrorText(){const it=curItem;const val=(document.getElementById('fillInput')?document.getElementById('fillInput').value.trim():'');const norm=function(v){return v.toLowerCase().replace(/\s+/g,' ').trim().replace(/[.,!?;:'"()]/g,'');};return norm(val)===norm(it.a);}
+function checkDictText(){const it=curItem;const val=(document.getElementById('fillInput')?document.getElementById('fillInput').value.trim():'');const norm=function(v){return v.toLowerCase().replace(/\s+/g,' ').trim().replace(/[.,!?;:'"()]/g,'');};return norm(val)===norm(it.a);}
+// --- word scramble ---
+let curScramble=[];
+function tapScramble(btn,ch){const it=curItem;if(!it)return;if(curScramble.length>=it.word.length)return;if(btn.classList.contains('used'))return;btn.classList.add('used');curScramble.push(ch);document.getElementById('scrambleSeq').innerHTML=curScramble.map(function(c,i){return '<span class="scramble-chip">'+esc(c)+'</span>';}).join('');}
+function gradeScramble(){const it=curItem;if(!it)return;if(curScramble.length!==it.word.length){toast('Use all the letters!','warn');return;}const correct=curScramble.join('').toLowerCase()===String(it.word).toLowerCase();submitAnswer(null,correct);}
+// --- label (SVG diagram) ---
+function respSVG(){
+  return '<svg viewBox="0 0 220 260" class="resp-svg" xmlns="http://www.w3.org/2000/svg">'+
+    '<path data-p="nose" onclick="pickLabel(\'nose\')" d="M95 28 Q110 6 125 28 L120 48 Q110 54 100 48 Z" class="lbl"/><text x="110" y="18" text-anchor="middle" class="lbl-t">Nose</text>'+
+    '<path data-p="mouth" onclick="pickLabel(\'mouth\')" d="M96 52 Q110 62 124 52 Q118 70 102 70 Z" class="lbl"/><text x="110" y="84" text-anchor="middle" class="lbl-t">Mouth</text>'+
+    '<path data-p="trachea" onclick="pickLabel(\'trachea\')" d="M103 74 L117 74 L119 138 L116 148 L104 148 L101 138 Z" class="lbl"/><text x="140" y="112" class="lbl-t">Trachea</text>'+
+    '<path data-p="bronchi" onclick="pickLabel(\'bronchi\')" d="M110 140 Q90 150 80 176 Q96 168 104 170 Q110 156 116 170 Q124 168 140 176 Q130 150 110 140 Z" class="lbl"/><text x="158" y="168" class="lbl-t">Bronchi</text>'+
+    '<ellipse data-p="lungs" onclick="pickLabel(\'lungs\')" cx="62" cy="196" rx="46" ry="42" class="lbl"/><ellipse data-p="lungs" onclick="pickLabel(\'lungs\')" cx="158" cy="196" rx="46" ry="42" class="lbl"/><text x="62" y="196" text-anchor="middle" class="lbl-t">Lungs</text>'+
+    '<path data-p="diaphragm" onclick="pickLabel(\'diaphragm\')" d="M20 240 Q110 214 200 240" stroke-width="5" class="lbl" fill="none"/><text x="110" y="252" text-anchor="middle" class="lbl-t">Diaphragm</text>'+
+  '</svg>';
+}
+let curLabelPick=null;
+function pickLabel(p){curLabelPick=p;document.querySelectorAll('.resp-svg [data-p]').forEach(function(el){el.classList.toggle('sel',el.getAttribute('data-p')===p);});document.getElementById('labelPick').innerHTML='<span class="label-pick">You picked: <b>'+p+'</b></span>';}
+function gradeLabel(){const it=curItem;if(!it)return;if(!curLabelPick){toast('Tap a part on the diagram first!','warn');return;}submitAnswer(null,curLabelPick===it.target);}
+// --- simulation ---
+function runSim(){const s=Number(document.getElementById('simSun').value||0),w=Number(document.getElementById('simWater').value||0),c=Number(document.getElementById('simCo2').value||0);const out=document.getElementById('simOut');let msg='';if(s<30)msg+='☀️ The plant has too LITTLE light — it cannot photosynthesize.<br>';if(w<30)msg+='💧 The plant lacks water — roots need it for photosynthesis.<br>';if(c<30)msg+='🫧 Low CO₂ — the plant needs carbon dioxide from the air.<br>';if(msg==='')msg='🌿 Great! The plant has sunlight, water and CO₂ — it is making its own food (glucose + oxygen)!';out.innerHTML=msg;out.className='sim-out'+(msg.indexOf('Great')>=0?' good':'');}
+function gradeSim(){submitAnswer(null,true);}
+// --- read-aloud recording ---
+let _mediaRec=null,_mediaChunks=[];
+function startRecording(btn){
+  if(!navigator.mediaDevices||!window.MediaRecorder){toast('Recording needs a microphone — just read aloud and press Done.','warn');const d=document.getElementById('readDoneBtn');if(d)d.style.display='';return;}
+  if(_mediaRec&&_mediaRec.state==='recording'){_mediaRec.stop();return;}
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){
+    _mediaChunks=[];_mediaRec=new MediaRecorder(stream);
+    _mediaRec.ondataavailable=function(e){if(e.data.size>0)_mediaChunks.push(e.data);};
+    _mediaRec.onstop=function(){saveReading();stream.getTracks().forEach(function(t){t.stop();});};
+    _mediaRec.start();btn.textContent='⏹ Stop recording';btn.classList.add('rec');
+  }).catch(function(){toast('Microphone not allowed — read aloud and press Done.','warn');const d=document.getElementById('readDoneBtn');if(d)d.style.display='';});
+}
+function saveReading(){
+  const blob=new Blob(_mediaChunks,{type:'video/webm'});
+  const d=document.getElementById('readDoneBtn');if(d)d.style.display='';
+  Logger.push('success','speak','read:recorded',{bytes:blob.size},null,null,null);
+  if(FB_CONFIGURED&&firebase&&firebase.storage){
+    try{
+      const ref=firebase.storage(firebaseApp).ref('readings/'+myUid+'/'+Date.now()+'.webm');
+      ref.put(blob).then(function(){toast('Recording saved ✓','good');}).catch(function(e){toast('Could not upload recording','warn');Logger.push('warn','speak','read:uploadFailed',null,null,{code:e&&e.code,message:e&&e.message},null);});
+    }catch(e){toast('Storage not configured — recording kept locally this session','warn');}
+  }else{toast('Recording made (enable Storage to keep it)','good');}
+}
+function finishRead(){submitAnswer(null,true);}
 let curGrade=null;
 function submitAnswer(optIdx, orderCorrect){
   const it=curItem;if(!it)return;
   if(it._submitted)return;         // guard: only ONE grading per question
   it._submitted=true;
   const isCorrect = it.type==='fill' ? checkFill()
-    : it.type==='order' ? !!orderCorrect
-    : (optIdx===it.a);
+    : it.type==='error' ? checkErrorText()
+    : it.type==='dict' ? checkDictText()
+    : (it.type==='mc'||it.type==='tf'||it.type==='listen'||it.type==='speak'||it.type==='branch') ? (optIdx===it.a)
+    : !!orderCorrect;
   const fbEl=document.getElementById('eqFb');
-  if(it.type!=='fill'&&it.type!=='order'){
+  if(it.type==='mc'||it.type==='tf'||it.type==='listen'||it.type==='speak'||it.type==='branch'){
     document.querySelectorAll('.eq-opt').forEach((b,i)=>{b.disabled=true;if(i===it.a)b.classList.add('correct');else if(i===optIdx)b.classList.add('wrong');});
   }
-  if(it.type==='order'){
+  if(it.type==='order'||it.type==='timeline'){
     document.querySelectorAll('.order-opt').forEach((b)=>{b.disabled=true;});
   }
   let fbHtml = isCorrect
@@ -1120,8 +1334,8 @@ function submitAnswer(optIdx, orderCorrect){
   const hadXP = isCorrect ? 10 : 2;
   addXP(hadXP);
   Logger.score('practice',it.sk,isCorrect,null,{question:norm(it.q)});
-  // Server-side verification (full anti-cheat). Skips self-assessed/sequencing types.
-  if(it.type!=='order'&&it.type!=='speak'){
+  // Server-side verification (full anti-cheat). Skips arrangement/simulation/self-assessed types.
+  if(!['order','timeline','match','cat','matrix','label','sim','branch','read','speak'].includes(it.type)){
     verifyServerAnswer(it, optIdx).then(function(d){
     if(!d)return;
     if(d.ok&&typeof d.totalXp==='number'){
@@ -1149,7 +1363,8 @@ function verifyServerAnswer(it, choice){
   return new Promise(function(resolve){
     if(!FB_CONFIGURED||typeof firebase==='undefined'||!firebase.functions||!auth||!auth.currentUser){resolve(null);return;}
     const key=String(it.q).toLowerCase().replace(/\s+/g,' ').trim().replace(/[.,!?;:'"()]/g,'');
-    const payload={key:key,skill:it.sk,choice:(choice==null?null:choice),fill:(it.type==='fill'?(document.getElementById('fillInput')?document.getElementById('fillInput').value:'') : null)};
+    const payload={key:key,skill:it.sk,type:it.type,choice:(choice==null?null:choice),fill:(it.type==='fill'||it.type==='error'||it.type==='dict')?(document.getElementById('fillInput')?document.getElementById('fillInput').value:''):null,
+      selected:(it.type==='ms'?curMsSel:null),answers:(it.type==='cloze'?curCloze:null),word:(it.type==='scramble'?curScramble.join(''):null)};
     try{
       firebase.functions(firebaseApp).httpsCallable('scienceVerifyAnswer')(payload)
         .then(function(r){resolve((r&&r.data)||null);})

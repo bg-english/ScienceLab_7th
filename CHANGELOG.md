@@ -2,6 +2,27 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [5.0.0] — 2026-08-19 — "19 tipos de pregunta"
+
+### Added — New question types (now 19 total)
+- **`ms`** opción múltiple múltiple · **`match`** emparejar · **`cloze`** huecos con
+  lista desplegable · **`cat`** clasificar · **`matrix`** grilla (sistema × órgano) ·
+  **`error`** corrección de frases · **`dict`** dictado (audio → escribir) ·
+  **`scramble`** ordenar letras · **`label`** diagrama interactivo SVG (sistema
+  respiratorio) · **`timeline`** línea de tiempo · **`sim`** simulación (sliders
+  de luz/agua/CO₂) · **`branch`** escenario con decisión · **`read`** lectura en
+  voz alta con grabación (MediaRecorder → Storage) · **`video`** vídeo-pregunta
+  (listo; requiere añadir URL del vídeo).
+- Total del banco: **99 ítems · 19 tipos · 0 claves duplicadas**.
+- `scienceVerifyAnswer` ahora verifica en servidor `ms`, `cloze`, `error`,
+  `dict`, `scramble` (además de mc/fill/tf/listen). Los tipos de disposición/
+  simulación se califican en el cliente y quedan registrados en el log.
+
+### Notes
+- `read` requiere habilitar Firebase **Storage** + reglas (documentado en README).
+- `video` necesita un vídeo real (`it.video`) y `pron` (reconocimiento de
+  pronunciación) queda pendiente por necesitar una API de voz.
+
 ## [4.2.0+] — 2026-08-19 — "Fully deployed & verified"
 
 - **Deployed** to Firebase project `scilab-7th`: 8 Cloud Functions live
