@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -349,6 +349,15 @@ function toastError(msg) {
   if (now - _lastErrToast < 8000) return;
   _lastErrToast = now;
   toast('⚠️ ' + msg, 'bad', 4000);
+}
+// Readable hint for Firebase errors (so real causes are not hidden)
+function fbErrHint(e) {
+  const code = e && e.code;
+  if (code === 'permission-denied') return 'Permission denied — this device is not admin. Use the teacher PIN (Activate 🔓).';
+  if (code === 'unauthenticated') return 'Not signed in. Reload the page.';
+  if (code === 'unavailable' || /network|fetch|offline|internet/i.test(String(e && e.message || ''))) return 'Network/connection error. Check internet.';
+  if (e && e.message) return String(e.message).slice(0, 140);
+  return 'Unknown error.';
 }
 window.onerror = function (msg, src, line, col, err) {
   toastError('JS Error: ' + String(msg).slice(0, 80) + ' (L' + line + ')');
@@ -1064,7 +1073,7 @@ async function loadSections() {
     if (!currentSectionId && SECTIONS.length) selectSection(SECTIONS[0].id);
   } catch (e) {
     console.warn('loadSections error', e);
-    toastError('Could not load sections');
+    toastError('Could not load sections: '+fbErrHint(e));
   }
 }
 function renderSectionsList() {
@@ -1108,7 +1117,7 @@ async function saveSec() {
     closeSecForm();
     await loadSections();
     toast('Section saved', 'good');
-  } catch (e) { err.textContent = 'Could not save — check connection.'; }
+  } catch (e) { err.textContent = fbErrHint(e); }
 }
 function delSection(id) {
   const sec = SECTIONS.find(s => s.id === id);
@@ -1284,7 +1293,7 @@ async function addStudent() {
     closeStudentForm();
     document.getElementById('addStudentForm').style.display = 'none';
     await loadStudents(currentSectionId);
-  } catch (e) { setAddErr('Could not save — check connection.'); }
+  } catch (e) { setAddErr(fbErrHint(e)); }
 }
 async function bulkAddStudents() {
   if (!currentSectionId) { setBulkErr('Pick a section first.'); return; }
@@ -1304,7 +1313,7 @@ async function bulkAddStudents() {
     setBulkErr('');
     await loadStudents(currentSectionId);
     toast(`${names.length} students added`, 'good');
-  } catch (e) { setBulkErr('Could not save — check connection.'); }
+  } catch (e) { setBulkErr(fbErrHint(e)); }
 }
 function exportCodesCSV() {
   const sec = SECTIONS.find(s => s.id === currentSectionId);
@@ -1353,17 +1362,78 @@ if (!CONFIGURED) {
   (async () => {
     try {
       await auth.signInAnonymously();
-      console.log('Teacher signed in anonymously');
+      console.log('Teacher signed in anonymously', auth.currentUser && auth.currentUser.uid);
     } catch (e) {
       console.warn('Anonymous sign-in failed', e);
       toastError('Sign-in failed — check connection');
     }
-    await refreshData();
-    await loadSections();
-    startListeners();
+    // Only proceed to load data if this device's uid is already an admin.
+    let isAdmin = false;
+    try {
+      const admDoc = await db.collection('admins').doc(auth.currentUser.uid).get();
+      isAdmin = admDoc.exists;
+    } catch (e) { console.warn('admin check error', e); }
+    if (isAdmin) {
+      await bootTeacher();
+    } else {
+      showAdminPinGate();
+    }
   })();
 }
 setInterval(refreshData, 60000);
+
+// ===== TEACHER PIN GATE =====
+// New device/browser -> anonymous uid is different -> not in /admins yet.
+// Ask for the master PIN once; teacherLogin promotes this uid to admin.
+let _adminPinShown = false;
+function showAdminPinGate() {
+  if (_adminPinShown) return;
+  _adminPinShown = true;
+  const ov = document.createElement('div');
+  ov.id = 'adminPinGate';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(15,61,46,.7);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:20px';
+  ov.innerHTML = `<div style="background:var(--paper);border-radius:20px;padding:30px;max-width:400px;width:100%;text-align:center;box-shadow:0 14px 38px rgba(0,0,0,.25)">
+    <div style="font-size:2.4rem">🔐</div>
+    <h2 style="margin:8px 0 4px">Teacher access</h2>
+    <p style="font-size:.9rem;opacity:.8;margin-bottom:14px">This device is not registered as admin. Enter the master PIN to activate this dashboard (works on any computer).</p>
+    <input id="adminPinInput" type="password" inputmode="numeric" maxlength="12" placeholder="Master PIN"
+      style="width:100%;font-family:'Lexend';font-size:1.1rem;text-align:center;padding:12px;border-radius:14px;border:2px solid var(--line);outline:none;margin-bottom:10px">
+    <div id="adminPinErr" style="color:var(--bad);font-size:.85rem;min-height:1.2em;margin-bottom:8px"></div>
+    <button id="adminPinBtn" onclick="submitTeacherPin()" style="width:100%;font-family:'Lexend';font-size:1rem;font-weight:700;padding:12px;border:none;border-radius:14px;background:var(--green);color:#fff;cursor:pointer">Activate 🔓</button>
+    <p style="font-size:.75rem;opacity:.6;margin-top:10px">Ask your assistant for the command to set <code>TEACHER_PIN</code>.</p>
+  </div>`;
+  ov.onclick = function (e) { if (e.target === ov) return; };
+  document.body.appendChild(ov);
+  setTimeout(function () { const i = document.getElementById('adminPinInput'); if (i) i.focus(); }, 100);
+  document.getElementById('adminPinInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitTeacherPin(); });
+}
+async function submitTeacherPin() {
+  const input = document.getElementById('adminPinInput');
+  const err = document.getElementById('adminPinErr');
+  const btn = document.getElementById('adminPinBtn');
+  const pin = (input && input.value || '').trim();
+  if (!pin) { err.textContent = 'Enter the master PIN.'; return; }
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    const fn = firebase.functions(firebaseApp).httpsCallable('teacherLogin');
+    await fn({ pin: pin });
+    const ov = document.getElementById('adminPinGate');
+    if (ov) ov.remove();
+    _adminPinShown = false;
+    toast('Teacher activated ✓', 'good');
+    await bootTeacher();
+  } catch (e) {
+    console.warn('teacherLogin error', e);
+    err.textContent = (e && e.code === 'permission-denied') ? 'Wrong master PIN.' : 'Login failed — check connection.';
+    btn.disabled = false; btn.textContent = 'Activate 🔓';
+    if (input) { input.value = ''; input.focus(); }
+  }
+}
+async function bootTeacher() {
+  await refreshData();
+  await loadSections();
+  startListeners();
+}
 </script>
 <div class="toast" id="toast"><span id="toastMsg"></span></div>
 </body>

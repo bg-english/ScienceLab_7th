@@ -144,4 +144,25 @@ La clave de Groq se guarda en Google Secret Manager, nunca en el código.
 
 ---
 
+## 7. Auditoría (nueva)
+
+El archivo **`AUDIT.md`** contiene el mapa técnico completo: arquitectura, modelo
+de datos, inventario de funciones (entradas/salidas/errores), flujos end-to-end,
+servicios externos/puertos, seguridad y hallazgos. Leerlo antes de tocar el código.
+
+### Bug crítico corregido (2.2.2) — crear sección/alumno en otro equipo
+- Síntoma: al crear una sección en otra computadora "no funcionaba" (permiso
+  denegado silencioso). Causa: el uid anónimo del profesor es por-dispositivo;
+  el doc `admins/{uid}` solo existía en el equipo original.
+- Solución: nuevo login de profesor con **PIN maestro** (`teacherLogin` Cloud
+  Function). Si el dispositivo no es admin, el dashboard muestra una puerta
+  "Teacher access" que pide el PIN maestro y promueve el uid actual a `admins/`.
+- **Acción requerida en Firebase:**
+  ```
+  cd "C:\BOSTON FLEX\SCIENCE PROJECTS\firebase"
+  firebase functions:secrets:set TEACHER_PIN     # define el PIN maestro, responde "yes" al re-deploy
+  firebase deploy --only functions
+  ```
+  Después, en CUALQUIER equipo: abrir `teacher.html` → "Activate 🔓" → PIN maestro.
+
 *Documento creado el 2026-08-18. Actualizar si hay cambios importantes.*

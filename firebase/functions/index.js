@@ -24,6 +24,9 @@ if (!admin.apps.length) admin.initializeApp();
 const db = admin.firestore();
 
 const GROQ_API_KEY = defineSecret('GROQ_API_KEY');
+// Master teacher PIN. Set with: firebase functions:secrets:set TEACHER_PIN
+// This lets the teacher promote the CURRENT device's anonymous uid to admin.
+const TEACHER_PIN = defineSecret('TEACHER_PIN');
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'openai/gpt-oss-20b';
 
@@ -249,4 +252,22 @@ exports.studentLogin = onCall({}, async (request) => {
     sectionCode: String(sec.data().code || sectionCode),
     subjects: Array.isArray(sec.data().subjects) ? sec.data().subjects.map(String).slice(0, 12) : [],
   };
+});
+
+// ---------- Teacher login (master PIN) ----------
+// The teacher enters a master PIN; on success the CURRENT device's anonymous
+// uid is promoted to /admins so the dashboard can read/write sections, students,
+// scores, notices, etc. This makes teacher identity work on ANY device/browser
+// (anonymous uids are per-device, so uid-in-admins alone was fragile).
+exports.teacherLogin = onCall({ secrets: [TEACHER_PIN] }, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const pin = String((request.data && request.data.pin) || '').trim();
+  const expected = TEACHER_PIN.value();
+  if (!expected) throw new HttpsError('failed-precondition', 'Teacher PIN is not configured yet.');
+  if (pin !== expected) throw new HttpsError('permission-denied', 'Wrong master PIN.');
+  await db.collection('admins').doc(request.auth.uid).set(
+    { email: 'teacher', promotedAt: new Date().toISOString() },
+    { merge: true }
+  );
+  return { ok: true };
 });

@@ -2,6 +2,26 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [2.2.2] — 2026-08-19
+
+### Added
+- **Teacher master-PIN login** (`teacherLogin` Cloud Function): on a new
+  device/browser the dashboard shows a "Teacher access" gate. Entering the
+  master PIN promotes the current device's anonymous uid to `admins/`, so the
+  teacher can manage sections/students from ANY computer (fixes the silent
+  "could not create section/student" bug on devices other than the original).
+
+### Fixed
+- **F1:** creating a section/student failed silently on new devices — the
+  teacher's anonymous uid was not in `admins/` and Firestore denied writes.
+  Now solved with the PIN gate above.
+- **F3:** misleading "check connection" errors replaced with `fbErrHint()` which
+  shows the real Firebase error code and the fix (e.g. permission-denied).
+
+### Setup required
+- Set the master PIN and redeploy:
+  `firebase functions:secrets:set TEACHER_PIN` (respond "yes" to redeploy).
+
 ## [2.2.1] — 2026-08-19
 
 ### Added
