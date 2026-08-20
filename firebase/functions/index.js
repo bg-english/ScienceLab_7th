@@ -20,8 +20,9 @@ const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const admin = require('firebase-admin');
 
-if (!admin.apps.length) admin.initializeApp();
-const db = admin.firestore();
+if (admin.getApps().length === 0) admin.initializeApp();
+const { getFirestore } = require('firebase-admin/firestore');
+const db = getFirestore();
 
 const GROQ_API_KEY = defineSecret('GROQ_API_KEY');
 // Master teacher PIN. Set with: firebase functions:secrets:set TEACHER_PIN
