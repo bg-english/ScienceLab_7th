@@ -1018,10 +1018,10 @@ function renderItem(){
     var suggest=notYetSk.length?notYetSk[0]:allSk.filter(function(s){return !sessionSkillSet.has(s);}).sort(function(a,b){return(state.skillLvl[a]||{lv:1}).lv-(state.skillLvl[b]||{lv:1}).lv;})[0];
     var nextBanner='';
     if(suggest){var sLv=(state.skillLvl[suggest]||{lv:1}).lv;nextBanner='<div class="next-skill-banner"><div class="ns-icon">🗺️</div><div class="ns-txt"><b>Next topic: '+SKILLS[suggest]+'</b><small>You\'re at Lv '+sLv+' ('+cefrLabel(sLv)+') there — keep exploring, '+firstName()+'!</small></div><button class="btn btn-gold" style="flex-shrink:0;font-size:.8rem;padding:9px 14px" onclick="startPractice(\'skill\',\''+suggest+'\')">Explore →</button></div>';}
-    e.innerHTML='<div style="text-align:center;padding:10px"><div style="font-size:3.4rem;animation:bob 5s ease-in-out infinite">🌱</div><h3 style="margin:10px 0">Well done, '+firstName()+'! Session complete! 🎉</h3>'+skillSnap+'<p style="opacity:.75">Overall accuracy: '+acc+'%. What you missed has been saved for Smart Review.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px"><button class="btn btn-green" onclick="startPractice(\'all\')">Next round ✨</button><button class="btn btn-ghost" onclick="go(\'cards\')">Go to flashcards →</button></div>'+nextBanner+'</div>';
-    confetti();return;
+    e.innerHTML='<div style="text-align:center;padding:10px"><div style="font-size:3.4rem;animation:bob 5s ease-in-out infinite">'+(acc>=50?'🌱':'💪')+'</div><h3 style="margin:10px 0">'+(acc>=50?'Well done, '+firstName()+'! Session complete! 🎉':'Good effort, '+firstName()+'! Keep practicing!')+'</h3>'+skillSnap+'<p style="opacity:.75">Overall accuracy: '+acc+'%. What you missed has been saved for Smart Review.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:16px"><button class="btn btn-green" onclick="startPractice(\'all\')">Next round ✨</button><button class="btn btn-ghost" onclick="go(\'cards\')">Go to flashcards →</button></div>'+nextBanner+'</div>';
+    if(acc>=50){confetti();}else{playWrongSound();}return;
   }
-  curItem=queue[qIdx];const it=curItem;
+  curItem=queue[qIdx];const it=curItem;it._submitted=false;
   if(it.q)state.seenQ[norm(it.q)]=true;
   let body, instr, qHTML=it.q, skillType=skillTypeOf(it);
   const stBadge='<span class="tag '+(skillType==='L'?'tag-blue':skillType==='S'?'tag-gold':skillType==='W'?'tag-green':'tag-red')+'" style="font-size:.62rem;margin-left:6px">'+SKILL_TYPES[skillType]+'</span>';
@@ -1092,6 +1092,8 @@ function gradeOrder(){
 let curGrade=null;
 function submitAnswer(optIdx, orderCorrect){
   const it=curItem;if(!it)return;
+  if(it._submitted)return;         // guard: only ONE grading per question
+  it._submitted=true;
   const isCorrect = it.type==='fill' ? checkFill()
     : it.type==='order' ? !!orderCorrect
     : (optIdx===it.a);
@@ -1584,16 +1586,17 @@ function finishExam(){
   syncNow();
   const e=document.getElementById('v-exam');
   const ringColor=pct>=80?'var(--ok)':pct>=50?'var(--gold)':'var(--bad)';
+  const passed=pct>=50;
   const msg=pct>=80?'Outstanding, '+firstName()+'! 🌟':pct>=50?'Good job, '+firstName()+'! Keep growing! 🌱':'Don\'t give up, '+firstName()+'! Review and try again! 💪';
-  e.innerHTML='<div class="exam-summary"><div style="font-size:4rem;animation:bob 3s ease-in-out infinite">'+(pct>=80?'🏆':pct>=50?'🌱':'💪')+'</div>'+
+  e.innerHTML='<div class="exam-summary"><div style="font-size:4rem;animation:bob 3s ease-in-out infinite">'+(passed?'🏆':'💪')+'</div>'+
     '<h2 class="h-title" style="margin-top:10px">'+msg+'</h2>'+
     '<div class="score-ring" style="border-color:'+ringColor+';color:'+ringColor+'">'+pct+'%</div>'+
-    '<p style="opacity:.8">'+examScore+' / '+examQueue.length+' correct · +'+(pct>=50?50:10)+' XP</p>'+
+    '<p style="opacity:.8">'+examScore+' / '+examQueue.length+' correct · +'+(passed?50:10)+' XP</p>'+
     '<div style="display:flex;gap:10px;justify-content:center;margin-top:20px;flex-wrap:wrap">'+
       '<button class="btn btn-green" onclick="go(\'practice\')">Practice more 🎮</button>'+
       '<button class="btn btn-ghost" onclick="renderExamIntro()">Exam menu</button>'+
     '</div></div>';
-  confetti();
+  if(passed){confetti();}else{playWrongSound();}   // celebrate only on passing
 }
 
 /* ===== LEADERBOARD ===== */
