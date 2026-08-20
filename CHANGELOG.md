@@ -2,6 +2,16 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [4.2.0+] — 2026-08-19 — "Fully deployed & verified"
+
+- **Deployed** to Firebase project `scilab-7th`: 8 Cloud Functions live
+  (scienceExplainTopic, scienceGenerateExercises, studentLogin, teacherLogin,
+  logEvent, recordAnswer, scienceVerifyAnswer, rotateLogs), Firestore rules with
+  `writings`/`logs`/`log_daily`, and the **master PIN** (`TEACHER_PIN`) configured.
+- **Verified live:** GitHub Pages serves v4.2; teacher dashboard activates with
+  the master PIN on any device; callables respond; scheduled `rotateLogs` active.
+- Runtime upgraded to **Node 22**; firebase-admin 14 / firebase-functions 7.
+
 ## [4.2.0] — 2026-08-19 — "Competencias científicas (PISA/NGSS)"
 
 ### Added
