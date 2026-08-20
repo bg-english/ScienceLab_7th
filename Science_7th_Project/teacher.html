@@ -227,6 +227,7 @@ td { padding: 9px 12px; white-space: nowrap; }
   <div class="panel-btns">
     <button class="panel-btn active" data-panel="dash" onclick="showPanel('dash')">&#128202; Dashboard</button>
     <button class="panel-btn" data-panel="admin" onclick="showPanel('admin')">&#128451; Sections &amp; Students</button>
+    <button class="panel-btn" data-panel="diag" onclick="showPanel('diag')">&#128737; Diagnostics</button>
   </div>
   <div class="filter-btns" id="filterBtns"></div>
   <button class="icon-btn" onclick="refreshData()" id="refreshBtn">
@@ -326,6 +327,25 @@ td { padding: 9px 12px; white-space: nowrap; }
   </div>
 </div>
 
+<!-- Diagnostics: system logs report -->
+<div id="diagPanel" style="display:none;padding:20px 24px;max-width:1200px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+    <h3 style="margin:0">&#128737; Diagnostics — System Activity Log</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="diagLevel" onchange="loadDiagnostics()" style="font-family:'Lexend';font-size:13px;padding:6px 10px;border-radius:10px;border:2px solid var(--line);background:var(--paper)">
+        <option value="">All levels</option><option value="error">Errors</option><option value="warn">Warnings</option><option value="success">Success</option><option value="info">Info</option>
+      </select>
+      <select id="diagScope" onchange="loadDiagnostics()" style="font-family:'Lexend';font-size:13px;padding:6px 10px;border-radius:10px;border:2px solid var(--line);background:var(--paper)">
+        <option value="">All scopes</option>
+      </select>
+      <button class="icon-btn" onclick="exportLogsJSONL()">&#11015; Download log file (.jsonl)</button>
+    </div>
+  </div>
+  <div id="diagSummary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px"></div>
+  <div id="diagTrend" style="background:var(--paper);border:2px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px"></div>
+  <div class="table-wrap" id="diagWrap" style="margin-bottom:10px"></div>
+</div>
+
 <!-- Main content -->
 <div class="main" id="mainContent">
   <div class="loading-overlay" id="loadingState">
@@ -359,6 +379,35 @@ function fbErrHint(e) {
   if (e && e.message) return String(e.message).slice(0, 140);
   return 'Unknown error.';
 }
+
+/* ============================================================
+   LOGGER — internal police (teacher app). Records every action
+   with precise detail and ships it to the /logs collection via
+   the logEvent Cloud Function. Batched + lightweight.
+   ============================================================ */
+const Logger=(function(){
+  const q=[],MAX=25,FLUSH_MS=6000;
+  let timer=null;
+  function now(){return new Date().toISOString();}
+  function push(level,scope,event,req,res,err,ms){
+    q.push({ts:now(),level:level,scope:scope,event:event,app:'teacher',
+      ok:!err,code:err?(err.code||'ERR'):'OK',
+      req:req||null,res:res||null,err:err?{code:err.code||'ERR',message:String(err.message||err).slice(0,300)}:null,
+      ms:(typeof ms==='number')?ms:null});
+    if(q.length>=MAX){flush();}else{schedule();}
+  }
+  function schedule(){if(timer)return;timer=setTimeout(flush,FLUSH_MS);}
+  function flush(){
+    if(timer){clearTimeout(timer);timer=null;}
+    if(!q.length)return;
+    if(!CONFIGURED||typeof firebase==='undefined'||!firebase.functions){q.length=0;return;}
+    const batch=q.splice(0,q.length);
+    try{ firebase.functions(firebaseApp).httpsCallable('logEvent')({entries:batch}).then(()=>{}).catch(()=>{}); }catch(e){q.length=0;}
+  }
+  window.addEventListener('pagehide',flush);
+  window.addEventListener('unload',flush);
+  return {push:push,flush:flush};
+})();
 window.onerror = function (msg, src, line, col, err) {
   toastError('JS Error: ' + String(msg).slice(0, 80) + ' (L' + line + ')');
   console.error('Teacher Error:', msg, 'Line:', line, err);
@@ -1034,11 +1083,94 @@ async function loadInterventions() {
 function showPanel(p) {
   const dash = document.getElementById('mainContent');
   const admin = document.getElementById('adminPanel');
+  const diag = document.getElementById('diagPanel');
   dash.style.display = p === 'dash' ? '' : 'none';
   admin.style.display = p === 'admin' ? '' : 'none';
+  if (diag) diag.style.display = p === 'diag' ? '' : 'none';
   document.querySelectorAll('.panel-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === p));
   if (p === 'admin') loadSections().catch(() => {});
+  else if (p === 'diag') loadDiagnostics();
   else refreshData();
+}
+
+// ===== DIAGNOSTICS (system log report) =====
+let diagCache = [];
+async function loadDiagnostics() {
+  const wrap = document.getElementById('diagWrap');
+  const sum = document.getElementById('diagSummary');
+  if (!CONFIGURED || !db) { if (sum) sum.innerHTML = '<p>Firebase not configured yet.</p>'; return; }
+  const lvl = document.getElementById('diagLevel').value;
+  const scope = document.getElementById('diagScope').value;
+  wrap.innerHTML = '<div class="loading-overlay"><div class="spinner"></div>Reading the log…</div>';
+  try {
+    let snap;
+    try {
+      snap = await db.collection('logs').orderBy('ts', 'desc').limit(400).get();
+    } catch (e) {
+      // Fallback: no composite index needed for a plain collection scan
+      if (e && /index/i.test(String(e.message))) {
+        snap = await db.collection('logs').limit(400).get();
+        snap = { docs: [...snap.docs].sort((a, b) => (b.data().ts || '').localeCompare(a.data().ts || '')), empty: snap.empty };
+      } else throw e;
+    }
+    let logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (lvl) logs = logs.filter(l => l.level === lvl);
+    if (scope) logs = logs.filter(l => l.scope === scope);
+    diagCache = logs;
+    const scopes = {};
+    snap.docs.forEach(d => { scopes[d.data().scope || 'system'] = 1; });
+    const scSel = document.getElementById('diagScope');
+    scSel.innerHTML = '<option value="">All scopes</option>' + Object.keys(scopes).sort().map(s => `<option value="${escAttr(s)}">${esc(s)}</option>`).join('');
+    scSel.value = scope;
+    renderDiagnostics(logs);
+  } catch (e) {
+    Logger.push('error', 'system', 'loadDiagnostics:failed', null, null, { code: e && e.code, message: e && e.message }, null);
+    wrap.innerHTML = `<p style="color:var(--bad)">Could not read logs: ${esc(fbErrHint(e))}</p>`;
+  }
+}
+function renderDiagnostics(logs) {
+  const total = logs.length;
+  const errs = logs.filter(l => !l.ok || l.level === 'error').length;
+  const warns = logs.filter(l => l.level === 'warn').length;
+  const okRate = total ? Math.round((total - errs) / total * 100) : 100;
+  const msList = logs.filter(l => typeof l.ms === 'number').map(l => l.ms);
+  const avgMs = msList.length ? Math.round(msList.reduce((a, b) => a + b, 0) / msList.length) : null;
+  const card = (label, val, cls, inline) => `<div class="summary-card"><div class="label">${label}</div><div class="value ${cls}"${inline ? ' style="' + inline + '"' : ''}>${val}</div></div>`;
+  document.getElementById('diagSummary').innerHTML =
+    card('Entries', total, 'blue') +
+    card('Errors', errs, '', errs ? 'color:var(--bad)' : 'color:var(--ok)') +
+    card('Warnings', warns, 'gold') +
+    card('Success rate', okRate + '%', '', okRate >= 90 ? 'color:var(--ok)' : okRate >= 70 ? 'color:var(--gold-dk)' : 'color:var(--bad)') +
+    card('Avg latency', avgMs != null ? avgMs + ' ms' : '—', 'blue');
+  const byDay = {};
+  logs.forEach(l => { const d = (l.ts || '').slice(0, 10) || '?'; byDay[d] = byDay[d] || { total: 0, err: 0 }; byDay[d].total++; if (!l.ok || l.level === 'error') byDay[d].err++; });
+  const days = Object.keys(byDay).sort().slice(-7);
+  const max = Math.max(1, ...days.map(d => byDay[d].total));
+  document.getElementById('diagTrend').innerHTML =
+    '<div style="font-weight:700;margin-bottom:10px">Activity &amp; errors per day (last 7)</div>' +
+    '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap">' +
+    (days.length ? days.map(d => { const b = byDay[d]; const h = Math.max(4, Math.round(b.total / max * 80)); const eh = Math.round(b.err / Math.max(1, b.total) * h); return `<div style="text-align:center"><div style="position:relative;width:36px;height:80px;background:var(--line);border-radius:6px;overflow:hidden"><div style="position:absolute;bottom:0;left:0;width:100%;height:${h}px;background:var(--green)"></div><div style="position:absolute;bottom:0;left:0;width:100%;height:${eh}px;background:var(--bad)"></div></div><div style="font-size:10px;margin-top:4px">${esc(d.slice(5))}</div></div>`; }).join('') : '<span style="color:#8a8a8a;font-size:13px">No data yet.</span>') +
+    '</div>';
+  const wrap = document.getElementById('diagWrap');
+  if (!logs.length) { wrap.innerHTML = '<p style="color:#8a8a8a;padding:12px">No log entries match this filter.</p>'; return; }
+  wrap.innerHTML = '<table><thead><tr><th>Time</th><th>Level</th><th>App</th><th>Scope</th><th>Event</th><th>Result</th><th>Latency</th></tr></thead><tbody>' +
+    logs.slice(0, 120).map(l => {
+      const lvlCls = l.level === 'error' ? 'accuracy-bad' : l.level === 'warn' ? 'accuracy-mid' : l.level === 'success' ? 'accuracy-good' : '';
+      const code = l.ok ? '<span style="color:var(--ok)">OK</span>' : '<span style="color:var(--bad)">' + esc(l.code || 'FAIL') + '</span>';
+      const detail = JSON.stringify({ ts: l.ts, level: l.level, scope: l.scope, event: l.event, req: l.req, res: l.res, err: l.err, ms: l.ms }).slice(0, 900);
+      return `<tr title="${esc(detail)}"><td style="white-space:nowrap">${esc((l.ts || '').slice(11, 19))}</td><td class="${lvlCls}" style="font-weight:600">${esc(l.level || 'info')}</td><td>${esc(l.app || '')}</td><td>${esc(l.scope || '')}</td><td>${esc(l.event || '')}</td><td>${code}</td><td>${typeof l.ms === 'number' ? l.ms + ' ms' : '—'}</td></tr>`;
+    }).join('') + '</tbody></table>' +
+    '<p style="font-size:11px;color:#8a8a8a;margin-top:6px">Hover a row to inspect the full request/response/error detail. Use "Download log file" for the complete machine-readable log.</p>';
+}
+function exportLogsJSONL() {
+  const data = diagCache.length ? diagCache : [{ note: 'no logs loaded — open the Diagnostics tab first' }];
+  const lines = data.map(l => JSON.stringify(l)).join('\n') + '\n';
+  const blob = new Blob([lines], { type: 'application/x-ndjson' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'scilab_logs_' + new Date().toISOString().slice(0, 10) + '.jsonl';
+  a.click();
+  URL.revokeObjectURL(a.href);
 }
 function renderFilterBtns() {
   const c = document.getElementById('filterBtns');
@@ -1114,10 +1246,11 @@ async function saveSec() {
   try {
     if (_editingSecId) await db.collection('sections').doc(_editingSecId).update({ name, code, subjects });
     else await db.collection('sections').add({ name, code, subjects, createdAt: new Date().toISOString() });
+    Logger.push('success','admin','saveSec:ok',{name:name,code:code,editing:_editingSecId||false},null,null,null);
     closeSecForm();
     await loadSections();
     toast('Section saved', 'good');
-  } catch (e) { err.textContent = fbErrHint(e); }
+  } catch (e) { Logger.push('error','admin','saveSec:failed',{name:name,code:code},{err:fbErrHint(e)},{code:e&&e.code,message:e&&e.message},null); err.textContent = fbErrHint(e); }
 }
 function delSection(id) {
   const sec = SECTIONS.find(s => s.id === id);
@@ -1292,8 +1425,9 @@ async function addStudent() {
     }
     closeStudentForm();
     document.getElementById('addStudentForm').style.display = 'none';
+    Logger.push(_editingStuId?'success':'success','admin',_editingStuId?'studentUpdate:ok':'addStudent:ok',{name:name,code:pin,sectionId:currentSectionId,editing:!!_editingStuId},{parents:parents.length},null,null);
     await loadStudents(currentSectionId);
-  } catch (e) { setAddErr(fbErrHint(e)); }
+  } catch (e) { Logger.push('error','admin','addStudent:failed',{name:name,sectionId:currentSectionId},{err:fbErrHint(e)},{code:e&&e.code,message:e&&e.message},null); setAddErr(fbErrHint(e)); }
 }
 async function bulkAddStudents() {
   if (!currentSectionId) { setBulkErr('Pick a section first.'); return; }
@@ -1311,9 +1445,10 @@ async function bulkAddStudents() {
     await batch.commit();
     document.getElementById('bulkNames').value = '';
     setBulkErr('');
+    Logger.push('success','admin','bulkAddStudents:ok',{sectionId:currentSectionId,count:names.length},null,null,null);
     await loadStudents(currentSectionId);
     toast(`${names.length} students added`, 'good');
-  } catch (e) { setBulkErr(fbErrHint(e)); }
+  } catch (e) { Logger.push('error','admin','bulkAddStudents:failed',{sectionId:currentSectionId,count:names.length},{err:fbErrHint(e)},{code:e&&e.code,message:e&&e.message},null); setBulkErr(fbErrHint(e)); }
 }
 function exportCodesCSV() {
   const sec = SECTIONS.find(s => s.id === currentSectionId);

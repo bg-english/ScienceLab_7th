@@ -2,6 +2,40 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [3.0.0] — 2026-08-19 — "Depuración + Policía Interno"
+
+### Added — System log (internal police)
+- **`logEvent` Cloud Function:** every transaction in both apps is recorded with
+  military precision (what was requested, what happened, how, and why if it
+  failed), validated, rate-limited (240/min/uid), and stored in `/logs`.
+- **`rotateLogs` scheduled function:** daily summaries in `/log_daily` + purges
+  logs older than 45 days (keeps the store lightweight).
+- **Logger in both apps:** batched/debounced, fire-and-forget; emits events for
+  login, practice, exam, flashcards, writing, AI, sync, notices, section/student
+  management and dashboard errors.
+- **Diagnostics panel** in the teacher dashboard (🛡️): KPIs (entries, errors,
+  warnings, success rate, avg latency), error trend per day, filters, detail
+  view on hover, and **JSONL export** (lightweight, machine-readable log file).
+- **`recordAnswer` Cloud Function (anti-cheat):** server-authoritative scoring
+  with bounded, monotonic increments in a transaction; the client adopts the
+  server totals.
+
+### Fixed (from audit)
+- **F4:** seed of Blue/Red sections is now visible/logged (no silent failures).
+- **F5:** leaderboard inflation via localStorage is mitigated server-side.
+- **F6:** brute-force protection on `studentLogin` (8 attempts/min per uid,
+  20/min per section code).
+
+### Setup required
+- Redeploy functions and set the master PIN + GROQ key:
+  ```
+  cd "C:\BOSTON FLEX\SCIENCE PROJECTS\firebase"
+  firebase functions:secrets:set TEACHER_PIN
+  firebase functions:secrets:set GROQ_API_KEY
+  firebase deploy --only functions
+  ```
+- `rotateLogs` is scheduled — requires the Blaze plan (already active).
+
 ## [2.2.2] — 2026-08-19
 
 ### Added

@@ -66,5 +66,19 @@ service cloud.firestore {
       allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
       allow update, delete: if isTeacher();
     }
+
+    // System log (written server-side by the logEvent Cloud Function via Admin
+    // SDK — bypasses rules). The teacher reads it for the Diagnostics report.
+    match /logs/{id} {
+      allow read: if isTeacher();
+      // no client writes: only the logEvent function (Admin SDK) may write
+      allow create, update, delete: if false;
+    }
+
+    // Daily log summaries (computed by rotateLogs)
+    match /log_daily/{id} {
+      allow read: if isTeacher();
+      allow write: if false;
+    }
   }
 }

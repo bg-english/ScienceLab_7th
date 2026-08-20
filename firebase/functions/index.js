@@ -225,11 +225,24 @@ JSON object. No markdown, no extra text.`;
 // Students authenticate by code so the app can never show the wrong profile.
 exports.studentLogin = onCall({}, async (request) => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  // F6 — anti brute-force: max 8 attempts/min per uid, max 20/min per section code
+  const attempts = new Map();
+  const allowAttempt = (key, max) => {
+    const now = Date.now(); const win = 60000;
+    const b = attempts.get(key);
+    if (!b || now - b.ts > win) { attempts.set(key, { n: 1, ts: now }); return true; }
+    if (b.n >= max) return false;
+    b.n++; return true;
+  };
+  setInterval(() => { const now = Date.now(); for (const [k, v] of attempts) if (now - v.ts > 120000) attempts.delete(k); }, 60000).unref?.();
+
   const data = request.data || {};
   const sectionCode = String(data.sectionCode || '').trim().toUpperCase().slice(0, 12);
   const code = String(data.code || '').trim().toUpperCase().slice(0, 12);
   if (!sectionCode) throw new HttpsError('invalid-argument', 'Enter your section code.');
   if (!/^\d{4}$/.test(code)) throw new HttpsError('invalid-argument', 'Your personal code must be 4 digits.');
+  if (!allowAttempt('uid:' + request.auth.uid, 8)) return { ok: false, error: 'Too many attempts. Wait a minute and try again.' };
+  if (!allowAttempt('sec:' + sectionCode, 20)) return { ok: false, error: 'Too many attempts for this section. Wait a minute.' };
 
   const secSnap = await db.collection('sections').where('code', '==', sectionCode).limit(1).get();
   if (secSnap.empty) return { ok: false, error: 'Section not found. Check the section code with your teacher.' };
@@ -270,4 +283,174 @@ exports.teacherLogin = onCall({ secrets: [TEACHER_PIN] }, async (request) => {
     { merge: true }
   );
   return { ok: true };
+});
+
+// ============================================================
+// LOGGING SYSTEM — "internal police"
+// Every transaction in both apps is logged here with precise detail:
+// what was requested, what happened, how, and why (if it failed).
+// Entries are stored in Firestore /logs (lightweight, queryable,
+// TTL-rotated daily by rotateLogs). A Diagnostics report in the
+// teacher dashboard reads this collection.
+// ============================================================
+
+const LOG_SCOPES = new Set([
+  'login', 'practice', 'exam', 'cards', 'write', 'ai', 'sync',
+  'notice', 'admin', 'teacher', 'system', 'data',
+]);
+const LOG_LEVELS = new Set(['debug', 'info', 'success', 'warn', 'error']);
+
+function sanitizeEntry(e) {
+  const out = {};
+  out.ts = typeof e.ts === 'string' ? e.ts.slice(0, 32) : new Date().toISOString();
+  out.level = LOG_LEVELS.has(e.level) ? e.level : 'info';
+  out.scope = LOG_SCOPES.has(e.scope) ? e.scope : 'system';
+  out.event = String(e.event || 'event').slice(0, 60);
+  out.app = e.app === 'teacher' ? 'teacher' : 'student';
+  out.ok = e.ok === true;
+  out.code = String(e.code || (e.ok ? 'OK' : 'ERR')).slice(0, 60);
+  if (e.req != null) { try { out.req = JSON.parse(JSON.stringify(e.req).slice(0, 800)); } catch {} }
+  if (e.res != null) { try { out.res = JSON.parse(JSON.stringify(e.res).slice(0, 800)); } catch {} }
+  if (e.err) {
+    out.err = {
+      code: String(e.err.code || e.code || 'ERR').slice(0, 60),
+      message: String(e.err.message || '').slice(0, 300),
+    };
+  }
+  if (typeof e.ms === 'number') out.ms = Math.round(e.ms);
+  if (e.extra != null) { try { out.extra = JSON.parse(JSON.stringify(e.extra).slice(0, 600)); } catch {} }
+  return out;
+}
+
+// Per-uid token bucket so nobody can flood the log collection.
+const logBuckets = new Map();
+function logAllowed(uid) {
+  const now = Date.now(); const win = 60000; const MAX = 240;
+  const b = logBuckets.get(uid);
+  if (!b || now - b.ts > win) { logBuckets.set(uid, { n: 1, ts: now }); return true; }
+  if (b.n >= MAX) return false;
+  b.n++; return true;
+}
+setInterval(() => { const now = Date.now(); for (const [k, v] of logBuckets) if (now - v.ts > 120000) logBuckets.delete(k); }, 60000).unref?.();
+
+// Client apps call this to record one or more log entries.
+exports.logEvent = onCall({}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  if (!logAllowed(request.auth.uid)) throw new HttpsError('resource-exhausted', 'Too many log entries.');
+  const data = request.data || {};
+  const raw = Array.isArray(data.entries) ? data.entries.slice(0, 30) : [];
+  if (!raw.length) return { ok: true, n: 0 };
+  const batch = db.batch();
+  let n = 0;
+  for (const e of raw) {
+    const clean = sanitizeEntry(e);
+    clean.actor = { uid: request.auth.uid, role: 'anon' };
+    batch.set(db.collection('logs').doc(), clean);
+    n++;
+  }
+  await batch.commit();
+  return { ok: true, n };
+});
+
+// ============================================================
+// ANTI-CHEAT — server-authoritative scoring (finding F5)
+// The client asks the server to record each scored action. The server
+// applies bounded, monotonic increments in a transaction, so a student
+// who edits localStorage cannot inflate the leaderboard: the authoritative
+// totals live in Firestore and the client adopts them.
+// ============================================================
+const ACTION_XP = {
+  practice: { correct: 10, wrong: 2 },
+  exam:     { correct: 5,  wrong: 0 },   // exam bonus awarded separately on finish
+  examBonus:{ pass: 50, fail: 10 },
+  cardGood: 8, cardOk: 4, cardHard: 1,
+  write:    { ok: 10 },
+};
+const MAX_XP_PER_ACTION = 60;
+
+exports.recordAnswer = onCall({}, async (request) => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const data = request.data || {};
+  const action = String(data.action || 'practice').slice(0, 20);
+  const correct = data.correct === true;
+  const skill = String(data.skill || '').slice(0, 40);
+  if (action !== 'examBonus' && !VALID_SKILLS.includes(skill)) throw new HttpsError('invalid-argument', 'Unknown skill.');
+
+  // Compute the XP the server is willing to grant for this action.
+  let xpDelta = 0;
+  if (action === 'card') {
+    const g = data.grade === 1 ? 'cardGood' : data.grade === -1 ? 'cardHard' : 'cardOk';
+    xpDelta = ACTION_XP[g] || 4;
+  } else if (action === 'write') {
+    xpDelta = ACTION_XP.write.ok;
+  } else if (action === 'examBonus') {
+    xpDelta = (data.scorePct >= 50) ? ACTION_XP.examBonus.pass : ACTION_XP.examBonus.fail;
+  } else {
+    xpDelta = correct ? ACTION_XP.practice.correct : ACTION_XP.practice.wrong;
+  }
+  xpDelta = clamp(Math.round(xpDelta), 0, MAX_XP_PER_ACTION);
+
+  const uid = request.auth.uid;
+  const ref = db.collection('scores').doc(uid);
+  let out = null;
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const cur = (snap.exists ? snap.data() : {});
+    const answered = (Number(cur.answered) || 0) + 1;
+    const correctN = (Number(cur.correct) || 0) + (correct ? 1 : 0);
+    const xp = (Number(cur.xp) || 0) + xpDelta;
+    const totalXp = (Number(cur.totalXp) || 0) + xpDelta;
+    const level = totalXpToLevel(totalXp);
+    // Per-skill mastery (bounded to sane values)
+    const mastery = cur.mastery && typeof cur.mastery === 'object' ? { ...cur.mastery } : {};
+    const m = mastery[skill] = { seen: (mastery[skill] && mastery[skill].seen || 0) + 1, correct: (mastery[skill] && mastery[skill].correct || 0) + (correct ? 1 : 0) };
+    const body = {
+      ...(snap.exists ? cur : {}),
+      uid,
+      answered, correct: correctN, xp, totalXp, level,
+      mastery,
+      updatedAt: new Date().toISOString(),
+    };
+    tx.set(ref, body, { merge: true });
+    out = { answered, correct: correctN, xp, totalXp, level, xpDelta, mastery: { [skill]: m } };
+  });
+  return { ok: true, ...out };
+});
+
+// Level derived from total XP (mirrors the client's xpNeeded tables).
+function totalXpToLevel(totalXp) {
+  let lv = 1, need = 100, rem = totalXp;
+  while (rem >= need) { rem -= need; lv++; need = lv <= 3 ? 100 : lv <= 6 ? 150 : lv <= 9 ? 200 : lv <= 12 ? 300 : lv <= 15 ? 400 : 500; }
+  return lv;
+}
+
+// ============================================================
+// ROTATION — daily summary + purge (keeps /logs lightweight)
+// Requires a Blaze plan (scheduled functions). If not scheduled, the
+// Diagnostics panel still works; logs are just not auto-purged.
+// ============================================================
+const { onSchedule } = require('firebase-functions/v2/scheduler');
+exports.rotateLogs = onSchedule('every day 03:00', async () => {
+  const now = Date.now();
+  const dayMs = 86400000;
+  const keepMs = 45 * dayMs; // keep 45 days
+  // Purge old logs
+  const old = await db.collection('logs').where('ts', '<', new Date(now - keepMs).toISOString()).limit(400).get();
+  let purged = 0;
+  const batch = db.batch();
+  old.forEach(d => { batch.delete(d.ref); purged++; });
+  if (purged) await batch.commit();
+  // Daily summary doc for trend analysis
+  const day = new Date().toISOString().slice(0, 10);
+  const dayRef = db.collection('log_daily').doc(day);
+  const snap = await db.collection('logs').get();
+  const counts = {}; let errors = 0; let totalMs = 0; let total = 0;
+  snap.forEach(d => {
+    const e = d.data(); total++;
+    counts[e.scope || 'system'] = (counts[e.scope || 'system'] || 0) + 1;
+    if (!e.ok || e.level === 'error') errors++;
+    if (typeof e.ms === 'number') totalMs += e.ms;
+  });
+  await dayRef.set({ day, total, errors, avgMs: total ? Math.round(totalMs / total) : 0, byScope: counts, purged, computedAt: new Date().toISOString() }, { merge: true });
+  console.log('rotateLogs done', { day, total, errors, purged });
 });

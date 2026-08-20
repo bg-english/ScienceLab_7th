@@ -165,4 +165,20 @@ servicios externos/puertos, seguridad y hallazgos. Leerlo antes de tocar el cód
   ```
   Después, en CUALQUIER equipo: abrir `teacher.html` → "Activate 🔓" → PIN maestro.
 
+### v3.0.0 — Sistema de LOGS + anti-cheat (ya implementado)
+- **Logs:** `logEvent` (callable) + `rotateLogs` (programada) + `logs/` y
+  `log_daily/` en Firestore. Panel **🛡️ Diagnostics** en el dashboard del
+  profesor (KPIs, tendencia, filtros, descarga JSONL). Logger embebido en ambas
+  apps (lotes + 6 s).
+- **Anti-cheat:** `recordAnswer` callable — el servidor aplica incrementos
+  acotados/monotónicos y el cliente adopta los totales autoritativos.
+- **Rate-limit login:** 8 intentos/min/uid y 20/min/sección en `studentLogin`.
+- **Al desplegar por primera vez (una sola vez):**
+  ```
+  firebase functions:secrets:set TEACHER_PIN
+  firebase functions:secrets:set GROQ_API_KEY
+  firebase deploy --only functions
+  ```
+  (`rotateLogs` necesita el plan Blaze, ya activo.)
+
 *Documento creado el 2026-08-18. Actualizar si hay cambios importantes.*

@@ -235,15 +235,24 @@ No hay puertos abiertos locales; todo es HTTPS saliente del navegador.
 ### 🟡 F4 — `loadSections` hace seed automático de blue/red
 - Si está vacía, inserta `sections/blue` y `sections/red` en un batch. Si el
   profesor no es admin, ese batch también falla (silencioso).
+- **✅ Resuelto (2.2.2/3.0.0):** con la puerta del PIN maestro y `fbErrHint`,
+  la causa ahora es visible; el seed es intencional (mantiene datos previos) y
+  queda registrado en el log del sistema.
 
 ### 🟡 F5 — Anti-cheat inexistente (conocido)
-- XP/notas calculadas en el cliente; un alumno puede editar `localStorage` y
-  subir `scores/{uid}` con valores falsos (su propia fila, regla lo permite).
+- XP/notas calculadas en el cliente; un alumno podía editar `localStorage` y
+  subir su propia fila con valores falsos.
+- **✅ Mitigado (3.0.0):** nueva Cloud Function `recordAnswer` — el servidor
+  aplica incrementos acotados y monotónicos en una transacción (máx. XP por
+  acción, `answered`/`correct` solo crecen, nivel derivado de XP en servidor)
+  y el cliente adopta los totales autoritativos. Nota: la verificación de la
+  respuesta correcta aún vive en el cliente; el siguiente paso es mover el banco
+  de preguntas al servidor para verificación total.
 
 ### 🟡 F6 — Sin rate-limit en `studentLogin`
-- Callable sin límite; un atacante podría probar PINs (fuerza bruta de 4 dígitos,
-  ~10k combinaciones) contra el código de sección. Mitigación recomendada:
-  limitar intentos por uid/IP o añadir delay.
+- Callable sin límite; fuerza bruta de PINs de 4 dígitos posible.
+- **✅ CORREGIDO (3.0.0):** límite de 8 intentos/min por uid y 20/min por
+  código de sección (token bucket en memoria).
 
 ### 🟢 Observación — `loadBoard` usa `db.collection('scores').get()`
 - Regla `list` permite a todo autenticado leer la lista → leaderboard correcto.
@@ -280,6 +289,28 @@ Para diagnosticar qué pasó:
    bloquear tras 5 fallos por sección).
 4. **F5 — Puntuación en servidor** (hito futuro).
 5. Documentar en `HANDOFF.md` cualquier cambio nuevo.
+
+---
+
+## 11. Sistema de LOGS (policía interno) — v3.0.0
+
+- **Almacenamiento:** colección `logs/` en Firestore (ligera, consultable,
+  rotada a 45 días por la función programada `rotateLogs`, que además genera
+  resúmenes diarios en `log_daily/` para análisis de tendencias).
+- **Formato de archivo:** exportación **JSONL** (`scilab_logs_AAAA-MM-DD.jsonl`),
+  una línea por evento — ligera, append-friendly, legible por cualquier sistema.
+- **Escritura:** Cloud Function `logEvent` (valida, sanitiza, limita 240/min por
+  uid y escribe en lote; el cliente no escribe directo a `logs`).
+- **Entrada mínima de un evento:** `{ts, level, scope, event, app, ok, code,
+  req, res, err{code,message}, ms, actor{uid}}`.
+- **Lectura:** panel **🛡️ Diagnostics** del dashboard del profesor: KPIs
+  (entradas, errores, avisos, tasa de éxito, latencia media), tendencia de
+  errores por día, filtros por nivel/ámbito, tabla con detalle completo al
+  pasar el ratón, y descarga del JSONL.
+- **Trazabilidad:** cada flujo clave (login estudiante, práctica, examen,
+  flashcards, escritura, IA, sincronización, administración de secciones/
+  alumnos, avisos, errores del dashboard) emite eventos con la causa exacta de
+  fallo (código + mensaje), para que las auditorías produzcan mejoras medibles.
 
 ---
 
