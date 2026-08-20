@@ -2,6 +2,17 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [5.1.0] — 2026-08-19 — "Más ítems de los tipos nuevos"
+
+### Added
+- **+28 ítems** de los tipos nuevos (banco total: **127 ítems · 19 tipos · 0 claves duplicadas**):
+  ms → 5 · match → 5 · cloze → 5 · cat → 5 · matrix → 3 · error → 4 · dict → 4 ·
+  scramble → 4 · label → 3 · timeline → 3 · sim → 3 · branch → 3 · read → 2.
+- La **simulación ahora es configurable por datos** (`sliders` + `rules` + `okMsg`),
+  lo que permitió añadir una 2ª simulación ("Lung lab": ejercicio, aire limpio,
+  no fumar) además de la del plant lab.
+- Corregido: los ítems `read` no tenían `q` (rompía el renderizado); ahora lo tienen.
+
 ## [5.0.0] — 2026-08-19 — "19 tipos de pregunta"
 
 ### Added — New question types (now 19 total)
