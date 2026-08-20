@@ -9,6 +9,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-functions-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <style>
 :root {
   --cream: #FBF6EA;
@@ -228,6 +229,7 @@ td { padding: 9px 12px; white-space: nowrap; }
     <button class="panel-btn active" data-panel="dash" onclick="showPanel('dash')">&#128202; Dashboard</button>
     <button class="panel-btn" data-panel="admin" onclick="showPanel('admin')">&#128451; Sections &amp; Students</button>
     <button class="panel-btn" data-panel="write" onclick="showPanel('write')">&#9997;&#65039; Writing</button>
+    <button class="panel-btn" data-panel="readings" onclick="showPanel('readings')">&#127911; Readings</button>
     <button class="panel-btn" data-panel="diag" onclick="showPanel('diag')">&#128737; Diagnostics</button>
   </div>
   <div class="filter-btns" id="filterBtns"></div>
@@ -340,6 +342,21 @@ td { padding: 9px 12px; white-space: nowrap; }
     </div>
   </div>
   <div id="writingsList"></div>
+</div>
+
+<!-- Read-aloud recordings -->
+<div id="readingsPanel" style="display:none;padding:20px 24px;max-width:1000px;margin:0 auto">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+    <h3 style="margin:0">&#127911; Read-Aloud Recordings (Speaking)</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <select id="readingFilter" onchange="loadReadings()" style="font-family:'Lexend';font-size:13px;padding:6px 10px;border-radius:10px;border:2px solid var(--line);background:var(--paper)">
+        <option value="">All</option><option value="blue">7th Blue</option><option value="red">7th Red</option>
+      </select>
+      <button class="icon-btn" onclick="loadReadings()">&#x21bb; Refresh</button>
+    </div>
+  </div>
+  <p style="font-size:12px;color:#8a8a8a;margin-bottom:10px">&#127908; Students read a Science passage aloud and record it. Tap ▶ to listen to their pronunciation and fluency.</p>
+  <div id="readingsList"></div>
 </div>
 
 <!-- Diagnostics: system logs report -->
@@ -1145,16 +1162,73 @@ function showPanel(p) {
   const dash = document.getElementById('mainContent');
   const admin = document.getElementById('adminPanel');
   const write = document.getElementById('writePanel');
+  const readings = document.getElementById('readingsPanel');
   const diag = document.getElementById('diagPanel');
   dash.style.display = p === 'dash' ? '' : 'none';
   admin.style.display = p === 'admin' ? '' : 'none';
   if (write) write.style.display = p === 'write' ? '' : 'none';
+  if (readings) readings.style.display = p === 'readings' ? '' : 'none';
   if (diag) diag.style.display = p === 'diag' ? '' : 'none';
   document.querySelectorAll('.panel-btn').forEach(b => b.classList.toggle('active', b.dataset.panel === p));
   if (p === 'admin') loadSections().catch(() => {});
   else if (p === 'write') loadWritings();
+  else if (p === 'readings') loadReadings();
   else if (p === 'diag') loadDiagnostics();
   else refreshData();
+}
+
+// ===== READ-ALOUD RECORDINGS =====
+async function loadReadings() {
+  const list = document.getElementById('readingsList');
+  if (!CONFIGURED || !db) { if (list) list.innerHTML = '<p>Firebase not configured yet.</p>'; return; }
+  list.innerHTML = '<div class="loading-overlay"><div class="spinner"></div>Loading recordings…</div>';
+  try {
+    const snap = await db.collection('readings').orderBy('createdAt', 'desc').limit(200).get();
+    let rows = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const f = document.getElementById('readingFilter').value;
+    if (f) rows = rows.filter(r => r.section === f);
+    renderReadings(rows);
+  } catch (e) {
+    Logger.push('error', 'admin', 'loadReadings:failed', null, null, { code: e && e.code, message: e && e.message }, null);
+    list.innerHTML = `<p style="color:var(--bad)">Could not load recordings: ${esc(fbErrHint(e))}</p>`;
+  }
+}
+function renderReadings(rows) {
+  const list = document.getElementById('readingsList');
+  if (!rows.length) { list.innerHTML = '<p style="color:#8a8a8a;padding:12px">No recordings yet — students read the Science passages aloud and their audio appears here.</p>'; return; }
+  list.innerHTML = rows.map(r => {
+    const secBadge = r.section === 'blue' ? '<span class="badge badge-blue">Blue</span>' : r.section === 'red' ? '<span class="badge badge-red">Red</span>' : '';
+    return `<div class="read-card" style="background:var(--paper);border:2px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div style="flex:1;min-width:180px"><b>${esc(r.name || '—')}</b> ${secBadge}<div style="font-size:.75rem;color:#8a8a8a">${relativeTime(r.createdAt)} · ${esc(r.fileName || '')}</div></div>
+      <audio controls preload="none" style="max-width:260px;height:36px" src="${escAttr('')}" data-path="${escAttr(r.storagePath || '')}" data-id="${escAttr(r.id)}"></audio>
+      <button class="icon-btn" onclick="playReading('${escAttr(r.id)}')">&#9654;&#65039; Load &amp; play</button>
+      <button class="icon-btn" style="color:var(--bad)" onclick="deleteReading('${escAttr(r.id)}')">&#128465;&#65039;</button>
+    </div>`;
+  }).join('');
+}
+function playReading(id) {
+  const card = document.querySelector('.read-card audio[data-id="' + id + '"]');
+  if (!card) return;
+  if (!firebase.storage) { toast('Storage SDK not loaded', 'bad'); return; }
+  const path = card.getAttribute('data-path');
+  card.parentElement.querySelector('button.icon-btn').textContent = 'Loading…';
+  firebase.storage(firebaseApp).ref(path).getDownloadURL()
+    .then(function(url) {
+      card.src = url;
+      card.play().catch(function(){});
+      const b = card.parentElement.querySelector('button.icon-btn');
+      if (b) b.textContent = '▶ Play again';
+    })
+    .catch(function(e) {
+      Logger.push('error', 'admin', 'playReading:failed', { id: id }, null, { code: e && e.code, message: e && e.message }, null);
+      toastError('Could not load the recording (check Storage rules)');
+    });
+}
+function deleteReading(id) {
+  if (!confirm('Delete this recording?')) return;
+  db.collection('readings').doc(id).delete()
+    .then(function() { toast('Recording deleted', 'good'); loadReadings(); })
+    .catch(function(e) { Logger.push('error', 'admin', 'deleteReading:failed', { id: id }, null, { code: e && e.code, message: e && e.message }, null); toastError('Could not delete'); });
 }
 
 // ===== WRITING SUBMISSIONS (rubric grading) =====

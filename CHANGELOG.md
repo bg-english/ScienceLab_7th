@@ -2,6 +2,21 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [5.2.0] — 2026-08-19 — "Panel de lecturas grabadas (Speaking)"
+
+### Added
+- **🎙️ Readings panel in the teacher dashboard:** lists all read-aloud recordings
+  (student, section, date, file), plays them via Storage download URLs, and lets
+  the teacher delete them. Filters by section.
+- **Student side:** each recording now registers a Firestore doc in `readings/`
+  (uid, name, section, storagePath, createdAt) so the teacher can find it.
+- **Storage rules** (`firebase/storage.rules`, referenced in `firebase.json`):
+  students read/write their own `readings/{uid}/...`; the teacher reads all
+  (via Firestore `admins` check). Firestore rule for `readings` added.
+
+### Deploy
+- `firebase deploy --only functions,firestore:rules,storage:rules`
+
 ## [5.1.0] — 2026-08-19 — "Más ítems de los tipos nuevos"
 
 ### Added

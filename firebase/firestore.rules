@@ -88,5 +88,12 @@ service cloud.firestore {
       allow update: if isTeacher();
       allow delete: if isTeacher();
     }
+
+    // Read-aloud recordings (metadata; the audio lives in Storage)
+    match /readings/{id} {
+      allow read: if isTeacher() || request.auth.uid == resource.data.uid;
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isTeacher();
+    }
   }
 }

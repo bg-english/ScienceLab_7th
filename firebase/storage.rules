@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// Storage rules for SciLab read-aloud recordings.
+// Students can read/write their OWN recordings; the teacher can read ALL
+// (teacher uid lives in Firestore /admins).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isTeacher() {
+      return request.auth != null &&
+        firestore.exists(/databases/(default)/documents/admins/$(request.auth.uid));
+    }
+
+    match /readings/{uid}/{file} {
+      allow read, write: if request.auth != null && (request.auth.uid == uid || isTeacher());
+    }
+
+    // Everything else is denied by default.
+  }
+}

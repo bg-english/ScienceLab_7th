@@ -1321,12 +1321,23 @@ function startRecording(btn){
 function saveReading(){
   const blob=new Blob(_mediaChunks,{type:'video/webm'});
   const d=document.getElementById('readDoneBtn');if(d)d.style.display='';
-  Logger.push('success','speak','read:recorded',{bytes:blob.size},null,null,null);
+  const path='readings/'+myUid+'/'+Date.now()+'.webm';
+  Logger.push('success','speak','read:recorded',{bytes:blob.size,path:path},null,null,null);
   if(FB_CONFIGURED&&firebase&&firebase.storage){
     try{
-      const ref=firebase.storage(firebaseApp).ref('readings/'+myUid+'/'+Date.now()+'.webm');
-      ref.put(blob).then(function(){toast('Recording saved ✓','good');}).catch(function(e){toast('Could not upload recording','warn');Logger.push('warn','speak','read:uploadFailed',null,null,{code:e&&e.code,message:e&&e.message},null);});
-    }catch(e){toast('Storage not configured — recording kept locally this session','warn');}
+      const ref=firebase.storage(firebaseApp).ref(path);
+      ref.put(blob).then(function(){
+        // register in Firestore so the teacher can find and play it
+        if(db&&myUid&&playerName){
+          db.collection('readings').add({
+            uid:myUid,name:playerName,section:playerSection||null,
+            storagePath:path,fileName:path.split('/').pop(),
+            createdAt:new Date().toISOString()
+          }).catch(function(e){Logger.push('warn','speak','read:registerFailed',null,null,{code:e&&e.code,message:e&&e.message},null);});
+        }
+        toast('Recording saved ✓','good');
+      }).catch(function(e){toast('Could not upload recording','warn');Logger.push('warn','speak','read:uploadFailed',null,null,{code:e&&e.code,message:e&&e.message},null);});
+    }catch(e){toast('Storage not configured — recording kept locally this session','warn');Logger.push('warn','speak','read:storageError',null,null,{message:e.message},null);}
   }else{toast('Recording made (enable Storage to keep it)','good');}
 }
 function finishRead(){submitAnswer(null,true);}
