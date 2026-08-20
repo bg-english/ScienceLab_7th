@@ -676,6 +676,7 @@ function go(id){
 /* ===== HUD ===== */
 function renderHUD(){document.getElementById('sLevel').textContent=state.level;document.getElementById('sXp').textContent=(state.totalXp||0).toLocaleString();document.getElementById('sStreak').textContent=state.streak||0;}
 function xpNeeded(lv){return lv<=3?100:lv<=6?150:lv<=9?200:lv<=12?300:lv<=15?400:500;}
+let _muteConfetti=false; // suppresses ALL celebration when the current answer is wrong
 function addXP(n){state.xp+=n;state.totalXp+=n;var need=xpNeeded(state.level);while(state.xp>=need){state.xp-=need;state.level++;showLevelUp();need=xpNeeded(state.level);}persist();renderHUD();}
 function showLevelUp(){
   var msg=['Keep growing, '+firstName()+'! 🌱','You are a Scientist in the making, '+firstName()+'! 🔬','Amazing work, '+firstName()+' — God\'s creation is incredible!','Keep exploring God\'s world, '+firstName()+'! 🌍'][state.level%4];
@@ -686,7 +687,7 @@ function showLevelUp(){
   document.getElementById('lvlupTxt').textContent='LEVEL '+state.level;
   document.getElementById('lvlupMsg').innerHTML=(tierMsg?'<b>'+tierMsg+'</b><br>':'')+msg;
   document.getElementById('lvlup').classList.remove('hidden');
-  confetti();
+  if(!_muteConfetti)confetti();
 }
 
 /* ===== toast + tts + confetti ===== */
@@ -717,8 +718,8 @@ function startLoaderRotation(msgs,ms){
 function stopLoader(){if(_flTimer){clearInterval(_flTimer);_flTimer=null;}}
 
 function playCelebrationSound(big){try{var ctx=new(window.AudioContext||window.webkitAudioContext)();var comp=ctx.createDynamicsCompressor();comp.threshold.value=-10;comp.ratio.value=5;comp.connect(ctx.destination);var master=ctx.createGain();master.gain.value=0.85;master.connect(comp);var t=ctx.currentTime;var notes=big?[261.63,329.63,392.00,523.25,659.25,783.99,1046.50]:[523.25,659.25,783.99];var step=big?0.075:0.09;notes.forEach(function(freq,i){var nt=t+i*step;var o=ctx.createOscillator();var g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0,nt);g.gain.linearRampToValueAtTime(0.32,nt+0.012);g.gain.exponentialRampToValueAtTime(0.001,nt+0.55);o.connect(g);g.connect(master);o.start(nt);o.stop(nt+0.6);});if(big){var sp=t+notes.length*step+0.04;[1046.50,1318.51,1567.98,2093.00].forEach(function(freq,i){var st=sp+i*0.038;var o=ctx.createOscillator();var g=ctx.createGain();o.type='sine';o.frequency.value=freq;g.gain.setValueAtTime(0.13,st);g.gain.exponentialRampToValueAtTime(0.001,st+0.38);o.connect(g);g.connect(master);o.start(st);o.stop(st+0.42);});}setTimeout(function(){try{ctx.close();}catch(e){}},2800);}catch(e){}}
-function confetti(){playCelebrationSound(true);const cs=['#1F8A4C','#5BB85C','#E9A72C','#7EC8E3','#C8202E'];for(let i=0;i<70;i++){const d=document.createElement('div');d.className='confetti';d.style.left=Math.random()*100+'vw';d.style.background=cs[i%5];d.style.transform='rotate('+Math.random()*360+'deg)';document.body.appendChild(d);const dur=2200+Math.random()*1500;d.animate([{transform:'translateY(0) rotate(0)',opacity:1},{transform:'translateY(105vh) rotate('+(360+Math.random()*360)+'deg)',opacity:.9}],{duration:dur,easing:'cubic-bezier(.3,.6,.4,1)'});setTimeout(()=>d.remove(),dur);}}
-function miniConfetti(){playCelebrationSound(false);const cs=['#1F8A4C','#5BB85C','#E9A72C','#7EC8E3'];for(let i=0;i<28;i++){const d=document.createElement('div');d.className='confetti';d.style.left=(20+Math.random()*60)+'vw';d.style.background=cs[i%4];d.style.transform='rotate('+Math.random()*360+'deg)';document.body.appendChild(d);const dur=1400+Math.random()*800;d.animate([{transform:'translateY(0) rotate(0)',opacity:1},{transform:'translateY(60vh) rotate('+(180+Math.random()*360)+'deg)',opacity:.7}],{duration:dur,easing:'cubic-bezier(.25,.7,.4,1)'});setTimeout(()=>d.remove(),dur);}}
+function confetti(){if(_muteConfetti)return;playCelebrationSound(true);const cs=['#1F8A4C','#5BB85C','#E9A72C','#7EC8E3','#C8202E'];for(let i=0;i<70;i++){const d=document.createElement('div');d.className='confetti';d.style.left=Math.random()*100+'vw';d.style.background=cs[i%5];d.style.transform='rotate('+Math.random()*360+'deg)';document.body.appendChild(d);const dur=2200+Math.random()*1500;d.animate([{transform:'translateY(0) rotate(0)',opacity:1},{transform:'translateY(105vh) rotate('+(360+Math.random()*360)+'deg)',opacity:.9}],{duration:dur,easing:'cubic-bezier(.3,.6,.4,1)'});setTimeout(()=>d.remove(),dur);}}
+function miniConfetti(){if(_muteConfetti)return;playCelebrationSound(false);const cs=['#1F8A4C','#5BB85C','#E9A72C','#7EC8E3'];for(let i=0;i<28;i++){const d=document.createElement('div');d.className='confetti';d.style.left=(20+Math.random()*60)+'vw';d.style.background=cs[i%4];d.style.transform='rotate('+Math.random()*360+'deg)';document.body.appendChild(d);const dur=1400+Math.random()*800;d.animate([{transform:'translateY(0) rotate(0)',opacity:1},{transform:'translateY(60vh) rotate('+(180+Math.random()*360)+'deg)',opacity:.7}],{duration:dur,easing:'cubic-bezier(.25,.7,.4,1)'});setTimeout(()=>d.remove(),dur);}}
 // Distinct "incorrect" feedback — the opposite of celebration:
 // a low, descending tone and a shake. Never confetti.
 function playWrongSound(){try{var ctx=new(window.AudioContext||window.webkitAudioContext)();var t=ctx.currentTime;var notes=[196.00,146.83,110.00];notes.forEach(function(freq,i){var nt=t+i*0.14;var o=ctx.createOscillator();var g=ctx.createGain();o.type='triangle';o.frequency.value=freq;g.gain.setValueAtTime(0,nt);g.gain.linearRampToValueAtTime(0.22,nt+0.02);g.gain.exponentialRampToValueAtTime(0.001,nt+0.5);o.connect(g);g.connect(ctx.destination);o.start(nt);o.stop(nt+0.55);});setTimeout(function(){try{ctx.close();}catch(e){}},1200);}catch(e){}}
@@ -1365,6 +1366,7 @@ function submitAnswer(optIdx, orderCorrect){
   if(isCorrect){miniConfetti();}
   else{shakeFeedback(document.querySelector('.eq-card'));playWrongSound();}
   // record
+  _muteConfetti=!isCorrect;   // wrong answer: no badge/level-up confetti
   recordAnswer(it.sk,isCorrect,skillTypeOf(it),compOf(it));
   if(!isCorrect){
     const qi=ITEMS.indexOf(it);
@@ -1373,6 +1375,7 @@ function submitAnswer(optIdx, orderCorrect){
   }
   const hadXP = isCorrect ? 10 : 2;
   addXP(hadXP);
+  _muteConfetti=false;
   Logger.score('practice',it.sk,isCorrect,null,{question:norm(it.q)});
   // Server-side verification (full anti-cheat). Skips arrangement/simulation/self-assessed types.
   if(!['order','timeline','match','cat','matrix','label','sim','branch','read','speak'].includes(it.type)){
