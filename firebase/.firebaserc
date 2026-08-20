@@ -1,7 +1,5 @@
 {
-  "functions": [
-    {
-      "source": "functions"
-    }
-  ]
+  "projects": {
+    "default": "scilab-7th"
+  }
 }
