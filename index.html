@@ -113,6 +113,37 @@ button{font-family:'Lexend';cursor:pointer}
 .card:hover .go{opacity:1;transform:translateX(4px)}
 .card .tag{display:inline-block;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:3px 10px;border-radius:20px;margin-bottom:8px}
 .tag-green{background:var(--green-lt);color:var(--green-dk)}
+/* ===== Collectible badge medals ===== */
+.badge-medal{width:78px;height:78px;border-radius:50%;padding:5px;position:relative;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+  box-shadow:0 6px 16px rgba(15,61,46,.18);transition:transform .18s}
+.badge-medal:hover{transform:scale(1.07)}
+.badge-medal .m-in{width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff,#eef5f0 60%,#d8e6dc);display:flex;align-items:center;justify-content:center;font-size:2.1rem;position:relative;overflow:hidden}
+.badge-medal .m-shine{position:absolute;inset:0;border-radius:50%;background:linear-gradient(115deg,rgba(255,255,255,0) 42%,rgba(255,255,255,.85) 50%,rgba(255,255,255,0) 58%);animation:mshine 3.2s ease-in-out infinite}
+@keyframes mshine{0%,60%{transform:translateX(-120%)}100%{transform:translateX(120%)}}
+.badge-medal .m-glow{position:absolute;inset:-6px;border-radius:50%;filter:blur(8px);opacity:.35;z-index:-1}
+.badge-medal.r-common{background:conic-gradient(from 210deg,#9db8d8,#5b7ea6,#9db8d8)}
+.badge-medal.r-rare{background:conic-gradient(from 210deg,#7fd0a4,#1F8A4C,#7fd0a4)}
+.badge-medal.r-epic{background:conic-gradient(from 210deg,#b78ce0,#7A4FB5,#b78ce0)}
+.badge-medal.r-legend{background:conic-gradient(from 200deg,#ffe29a,#E9A72C,#ffb84d,#BE8418,#ffe29a);animation:legendspin 6s linear infinite}
+@keyframes legendspin{to{filter:hue-rotate(30deg)}}
+.badge-medal.r-common .m-glow{background:#5b7ea6}
+.badge-medal.r-rare .m-glow{background:#1F8A4C}
+.badge-medal.r-epic .m-glow{background:#7A4FB5}
+.badge-medal.r-legend .m-glow{background:#E9A72C}
+.badge-medal.locked{filter:grayscale(1);opacity:.38}
+.badge-medal.locked .m-shine{display:none}
+.badge-medal .m-ribbon{position:absolute;top:-7px;left:50%;transform:translateX(-50%);background:var(--red);color:#fff;font-size:7px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:2px 8px;border-radius:0 0 6px 6px}
+.badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.badge-tile{background:var(--paper);border:2px solid var(--line);border-radius:18px;padding:16px 12px;text-align:center;transition:transform .18s,box-shadow .2s}
+.badge-tile:hover{transform:translateY(-3px);box-shadow:var(--shadow-sm)}
+.badge-tile .bt-name{font-weight:700;font-size:.85rem;margin-top:8px;line-height:1.2}
+.badge-tile .bt-desc{font-size:.72rem;color:#8a8a8a;margin-top:4px}
+.badge-tile .bt-rarity{display:inline-block;font-size:.6rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-top:6px;padding:2px 8px;border-radius:20px}
+.rar-common{color:#5b7ea6;background:#e7eef7}
+.rar-rare{color:#1F8A4C;background:#e2f3e8}
+.rar-epic{color:#7A4FB5;background:#ede7f6}
+.rar-legend{color:#BE8418;background:#fdf0d5}
+.badge-earned-banner{display:flex;align-items:center;gap:14px;background:linear-gradient(135deg,#16244A,#1F8A4C);color:#fff;border-radius:16px;padding:14px 18px;margin-bottom:14px;animation:fade .4s}
 .tag-blue{background:var(--blue-lt);color:var(--blue)}
 .tag-gold{background:var(--soft);color:var(--gold-dk)}
 .tag-red{background:#fbe4e6;color:var(--red)}
@@ -419,6 +450,9 @@ button{font-family:'Lexend';cursor:pointer}
 <!-- ===== VIEW: LEADERBOARD ===== -->
 <section class="view hidden" id="v-board" aria-hidden="true"></section>
 
+<!-- ===== VIEW: BADGES ===== -->
+<section class="view hidden" id="v-badges" aria-hidden="true"></section>
+
 <!-- ===== LOGIN MODAL ===== -->
 <div class="modal-overlay hidden" id="nameModal">
   <div class="modal-card" role="dialog" aria-modal="true" aria-label="Student login">
@@ -598,7 +632,7 @@ const SKILLS={
 };
 
 /* ===== state ===== */
-let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},cardSrs:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}},compMastery:{}};
+let state=Store.get('slstate',null)||{xp:0,level:1,streak:0,lastDay:null,answered:0,correct:0,lastExamScore:null,bestExamScore:null,examHistory:[],mastery:{},review:[],badges:[],cardBox:{},cardSrs:{},seenQ:{},skillLvl:{},skillBadges:{},skillTypeMastery:{R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}},compMastery:{},perfectStreak:0,seenTypes:{},seenTypesCount:0};
 if(state.lastExamScore===undefined)state.lastExamScore=null;
 if(state.bestExamScore===undefined)state.bestExamScore=null;
 if(!state.examHistory)state.examHistory=[];
@@ -612,6 +646,9 @@ if(!state.cardBox)state.cardBox={};
 if(!state.cardSrs)state.cardSrs={};
 if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};
 if(!state.compMastery)state.compMastery={};
+if(state.perfectStreak===undefined)state.perfectStreak=0;
+if(!state.seenTypes)state.seenTypes={};
+if(state.seenTypesCount===undefined)state.seenTypesCount=Object.keys(state.seenTypes).length;
 if(state.totalXp===undefined){
   var retroXp=0;
   for(var lv=1;lv<state.level;lv++){retroXp+=(lv<=3?100:lv<=6?150:lv<=9?200:lv<=12?300:lv<=15?400:500);}
@@ -634,8 +671,8 @@ function addSkillXP(sk,n){if(!state.skillLvl[sk])state.skillLvl[sk]={xp:0,lv:1};
 (function(){const today=new Date().toDateString();if(state.lastDay!==today){const y=new Date(Date.now()-864e5).toDateString();state.streak=(state.lastDay===y)?state.streak+1:1;state.lastDay=today;persist();}})();
 
 /* ===== nav ===== */
-const VIEWS=[['dash','🏠 Home'],['learn','📖 Learn'],['practice','🎮 Practice'],['cards','🃏 Flashcards'],['reinforce','💪 Reinforce'],['write','✍️ Write'],['exam','🏆 Exam'],['board','🏅 Leaderboard']];
-const PRIMARY_TABS=['dash','learn','practice','cards','write','exam','board'];
+const VIEWS=[['dash','🏠 Home'],['learn','📖 Learn'],['practice','🎮 Practice'],['cards','🃏 Flashcards'],['reinforce','💪 Reinforce'],['write','✍️ Write'],['exam','🏆 Exam'],['board','🏅 Leaderboard'],['badges','🎖️ Badges']];
+const PRIMARY_TABS=['dash','learn','practice','cards','write','exam','board','badges'];
 const DROPDOWN_TABS=[['reinforce','💪 Reinforce']];
 const tabsEl=document.getElementById('tabs');
 VIEWS.forEach(([id,label])=>{
@@ -671,6 +708,7 @@ function go(id){
   if(id==='write')renderWrite();
   if(id==='exam')renderExamIntro();
   if(id==='board')loadBoard('xp');
+  if(id==='badges')renderBadges();
 }
 
 /* ===== HUD ===== */
@@ -727,19 +765,32 @@ function shakeFeedback(el){if(!el)return;el.classList.remove('shake');void el.of
 
 /* ===== badges ===== */
 const BADGES=[
-  {id:'first',ic:'🎯',nm:'First Discovery',desc:'Answer your first question correctly',color:'#1FAA66'},
-  {id:'streak3',ic:'🔥',nm:'On Fire',desc:'Maintain a 3-day streak',color:'#E64545'},
-  {id:'practice50',ic:'⚡',nm:'Lab Assistant',desc:'Answer 50 questions total',color:'#E9A72C'},
-  {id:'practice100',ic:'💫',nm:'Science Star',desc:'Answer 100 questions total',color:'#BE8418'},
-  {id:'accuracy80',ic:'🎖️',nm:'Accuracy Ace',desc:'Maintain 80%+ accuracy (30+ Qs)',color:'#1E50A0'},
-  {id:'photo',ic:'🌞',nm:'Photosynthesis Pro',desc:'80%+ mastery on all photosynthesis skills',color:'#E9A72C'},
-  {id:'resp',ic:'🫁',nm:'Respiration Hero',desc:'80%+ mastery on all respiration skills',color:'#C8202E'},
-  {id:'tier2',ic:'🧭',nm:'Level 2 Explorer',desc:'Reach Level 2',color:'#1FAA66'},
-  {id:'tier4',ic:'⚔️',nm:'Level 4 Challenger',desc:'Reach Level 4',color:'#E9A72C'},
-  {id:'tier6',ic:'👑',nm:'Level 6 Champion',desc:'Reach Level 6',color:'#7A4FB5'},
-  {id:'exam',ic:'🏆',nm:'Exam Warrior',desc:'Complete the final exam',color:'#E9A72C'},
-  {id:'perfect',ic:'💯',nm:'Perfection',desc:'Score 100% on the final exam',color:'#0F3D2E'},
-  {id:'explorer',ic:'🌍',nm:'Explorer',desc:'Reach Level 2 in ALL 12 skills',color:'#1E50A0'}
+  {id:'first',ic:'🎯',nm:'First Discovery',desc:'Answer your first question correctly',rar:'common'},
+  {id:'streak3',ic:'🔥',nm:'On Fire',desc:'Maintain a 3-day streak',rar:'common'},
+  {id:'streak7',ic:'⚡',nm:'Flame Master',desc:'Maintain a 7-day streak',rar:'rare'},
+  {id:'streak14',ic:'🌋',nm:'Unstoppable',desc:'Maintain a 14-day streak',rar:'legend'},
+  {id:'practice50',ic:'⚗️',nm:'Lab Assistant',desc:'Answer 50 questions total',rar:'common'},
+  {id:'practice100',ic:'💫',nm:'Science Star',desc:'Answer 100 questions total',rar:'rare'},
+  {id:'practice250',ic:'🪐',nm:'Galaxy Scientist',desc:'Answer 250 questions total',rar:'legend'},
+  {id:'accuracy80',ic:'🎖️',nm:'Accuracy Ace',desc:'80%+ accuracy (30+ Qs)',rar:'rare'},
+  {id:'accuracy90',ic:'🏹',nm:'Bullseye',desc:'90%+ accuracy (50+ Qs)',rar:'epic'},
+  {id:'perfect10',ic:'💠',nm:'Perfect Storm',desc:'10 perfect answers in a row',rar:'epic'},
+  {id:'photo',ic:'🌞',nm:'Photosynthesis Pro',desc:'80%+ mastery on all photosynthesis skills',rar:'rare'},
+  {id:'resp',ic:'🫁',nm:'Respiration Hero',desc:'80%+ mastery on all respiration skills',rar:'rare'},
+  {id:'skillR',ic:'📖',nm:'Reading Scientist',desc:'80%+ in Reading skills (20+ Qs)',rar:'rare'},
+  {id:'skillL',ic:'🎧',nm:'Listening Star',desc:'80%+ in Listening (10+ Qs)',rar:'epic'},
+  {id:'skillS',ic:'🗣️',nm:'Speaking Hero',desc:'80%+ in Speaking (5+ Qs)',rar:'epic'},
+  {id:'skillW',ic:'✍️',nm:'Writing Master',desc:'80%+ in Writing (5+ Qs)',rar:'epic'},
+  {id:'types10',ic:'🧩',nm:'Explorer of Types',desc:'Try 10 different question types',rar:'rare'},
+  {id:'tier2',ic:'🧭',nm:'Level 2 Explorer',desc:'Reach Level 2',rar:'common'},
+  {id:'tier4',ic:'⚔️',nm:'Level 4 Challenger',desc:'Reach Level 4',rar:'rare'},
+  {id:'tier6',ic:'👑',nm:'Level 6 Champion',desc:'Reach Level 6',rar:'epic'},
+  {id:'exam',ic:'🏆',nm:'Exam Warrior',desc:'Complete the final exam',rar:'common'},
+  {id:'exam90',ic:'🎓',nm:'Exam Elite',desc:'Score 90%+ on the final exam',rar:'epic'},
+  {id:'exams3',ic:'🗂️',nm:'Exam Streak',desc:'Complete 3 final exams',rar:'rare'},
+  {id:'perfect',ic:'💯',nm:'Perfection',desc:'Score 100% on the final exam',rar:'legend'},
+  {id:'srs10',ic:'🃏',nm:'Memory Master',desc:'Master 10 flashcards (Box 5)',rar:'rare'},
+  {id:'explorer',ic:'🌍',nm:'Explorer',desc:'Reach Level 2 in ALL 12 skills',rar:'epic'}
 ];
 const SKILL_BADGES=[
   {id:'sk_lv2',  ic:'🌱',nm:'First Step',    desc:'Reach Level 2'},
@@ -770,25 +821,48 @@ function checkSkillBadges(sk){
   toCheck.forEach(function(b){if(b.cond&&!earned.includes(b.id)){earned.push(b.id);newOnes.push(b.id);}});
   if(newOnes.length){persist();newOnes.forEach(function(id){var bd=SKILL_BADGES.find(function(x){return x.id===id;});if(bd)toast('🏅 '+SKILLS[sk]+' Badge: '+bd.nm+'! '+bd.ic,'good');});}
 }
-function award(id){if(!state.badges.includes(id)){state.badges.push(id);persist();syncNow();const b=BADGES.find(x=>x.id===id);toast('🏅 Badge Earned: '+b.nm+'! '+b.ic,'good');confetti();}}
+function award(id){
+  if(state.badges.includes(id))return;
+  state.badges.push(id);persist();syncNow();
+  const b=BADGES.find(x=>x.id===id);
+  if(b){
+    const bonus=b.rar==='legend'?100:b.rar==='epic'?60:b.rar==='rare'?35:15;
+    addXP(bonus); // badges are worth earning: XP bonus by rarity
+    toast('🏅 '+b.nm+'! +'+bonus+' XP '+b.ic,'good');
+  }
+  confetti();
+}
 function checkBadges(){
   const ph=['photo-process','photo-inputs','photo-outputs','chlorophyll','stomata'];
   if(ph.every(s=>masteryPct(s)>=80))award('photo');
   const rp=['plant-resp','root-resp','human-organs','breathing','gas-exchange','resp-care','resp-vocab'];
   if(rp.every(s=>masteryPct(s)>=80))award('resp');
   if(state.streak>=3)award('streak3');
+  if(state.streak>=7)award('streak7');
+  if(state.streak>=14)award('streak14');
   if(state.answered>=50)award('practice50');
   if(state.answered>=100)award('practice100');
+  if(state.answered>=250)award('practice250');
   if(state.answered>=30&&state.correct/state.answered>=0.8)award('accuracy80');
+  if(state.answered>=50&&state.correct/state.answered>=0.9)award('accuracy90');
+  if(state.perfectStreak>=10)award('perfect10');
+  if(skillPct('R')>=80&&(state.skillTypeMastery.R&&state.skillTypeMastery.R.seen>=20))award('skillR');
+  if(skillPct('L')>=80&&(state.skillTypeMastery.L&&state.skillTypeMastery.L.seen>=10))award('skillL');
+  if(skillPct('S')>=80&&(state.skillTypeMastery.S&&state.skillTypeMastery.S.seen>=5))award('skillS');
+  if(skillPct('W')>=80&&(state.skillTypeMastery.W&&state.skillTypeMastery.W.seen>=5))award('skillW');
+  if(state.seenTypesCount>=10)award('types10');
   if(state.level>=2)award('tier2');
   if(state.level>=4)award('tier4');
   if(state.level>=6)award('tier6');
+  if(state.lastExamScore!=null&&state.lastExamScore>=90)award('exam90');
+  if((state.examHistory||[]).length>=3)award('exams3');
+  if((state.cardSrs?Object.keys(state.cardSrs).filter(function(k){return state.cardSrs[k].box>=5;}):[]).length>=10)award('srs10');
   if(Object.keys(SKILLS).every(function(s){return(state.skillLvl[s]||{lv:1}).lv>=2;}))award('explorer');
 }
 
 /* ===== mastery ===== */
 function masteryPct(s){const m=state.mastery[s];return m&&m.seen?Math.round(m.correct/m.seen*100):0;}
-function recordAnswer(skill,correct,stype,comp){state.answered++;if(correct)state.correct++;const m=state.mastery[skill];m.seen++;if(correct){m.correct++;addSkillXP(skill,15);}else{addSkillXP(skill,3);}if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};const t=stype||skillTypeOf({type:'mc'});const st=state.skillTypeMastery[t]||(state.skillTypeMastery[t]={seen:0,correct:0});st.seen++;if(correct)st.correct++;if(!state.compMastery)state.compMastery={};const c=comp||compOf({type:'mc'});const cm=state.compMastery[c]||(state.compMastery[c]={seen:0,correct:0});cm.seen++;if(correct)cm.correct++;persist();if(state.correct===1)award('first');checkBadges();checkSkillBadges(skill);}
+function recordAnswer(skill,correct,stype,comp,itype){state.answered++;if(correct)state.correct++;const m=state.mastery[skill];m.seen++;if(correct){m.correct++;addSkillXP(skill,15);state.perfectStreak=(state.perfectStreak||0)+1;}else{addSkillXP(skill,3);state.perfectStreak=0;}if(itype&&!state.seenTypes)state.seenTypes={};if(itype){state.seenTypes[itype]=1;state.seenTypesCount=Object.keys(state.seenTypes).length;}if(!state.skillTypeMastery)state.skillTypeMastery={R:{seen:0,correct:0},L:{seen:0,correct:0},S:{seen:0,correct:0},W:{seen:0,correct:0}};const t=stype||skillTypeOf({type:'mc'});const st=state.skillTypeMastery[t]||(state.skillTypeMastery[t]={seen:0,correct:0});st.seen++;if(correct)st.correct++;if(!state.compMastery)state.compMastery={};const c=comp||compOf({type:'mc'});const cm=state.compMastery[c]||(state.compMastery[c]={seen:0,correct:0});cm.seen++;if(correct)cm.correct++;persist();if(state.correct===1)award('first');checkBadges();checkSkillBadges(skill);}
 function skillPct(t){const st=(state.skillTypeMastery||{})[t];return st&&st.seen?Math.round(st.correct/st.seen*100):0;}
 
 /* ===== DATA: LESSONS (from the temario) ===== */
@@ -1367,7 +1441,7 @@ function submitAnswer(optIdx, orderCorrect){
   else{shakeFeedback(document.querySelector('.eq-card'));playWrongSound();}
   // record
   _muteConfetti=!isCorrect;   // wrong answer: no badge/level-up confetti
-  recordAnswer(it.sk,isCorrect,skillTypeOf(it),compOf(it));
+  recordAnswer(it.sk,isCorrect,skillTypeOf(it),compOf(it),it.type);
   if(!isCorrect){
     const qi=ITEMS.indexOf(it);
     if(qi>=0&&!state.review.includes(qi))state.review.push(qi);
@@ -1595,7 +1669,38 @@ function renderDash(){
       return '<div class="mastery-row"><span class="mastery-label" style="width:220px">'+icons[c]+' '+COMPS[c]+'</span><div class="mastery-bar"><div class="fill" style="width:'+pct+'%"></div></div><span class="mastery-pct" style="color:'+(pct>=70?'var(--ok)':pct>=40?'var(--gold-dk)':'var(--bad)')+'">'+pct+'%</span><span style="font-size:.72rem;color:#8a8a8a;width:52px;text-align:right">'+seen+' Qs</span></div>';
     }).join('')+'</div>'+
     '<h2 style="margin:28px 0 14px;font-size:1.25rem">Your Skill Garden</h2>'+
-    '<div class="card" style="cursor:default">'+skillsProgress+'</div>';
+    '<div class="card" style="cursor:default">'+skillsProgress+'</div>'+
+    '<h2 style="margin:28px 0 14px;font-size:1.25rem">Your Badge Collection</h2>'+
+    '<div style="display:flex;flex-wrap:wrap;gap:10px">'+state.badges.map(function(id){var b=BADGES.find(function(x){return x.id===id;});return b?medalHTML(b,true):'';}).join('')+
+    (state.badges.length?'':'<p style="color:#8a8a8a;font-size:.9rem">You have not earned any badges yet. Open the 🎖️ Badges tab to see how to earn them!</p>')+
+    '</div>';
+}
+/* ===== BADGES GALLERY ===== */
+const BADGE_RARITY_LABEL={common:'Common',rare:'Rare',epic:'Epic',legend:'Legendary'};
+function medalHTML(b,earned){
+  const r=b.rar||'common';
+  return '<div class="badge-medal r-'+r+(earned?'':' locked')+'" title="'+esc(b.nm)+' — '+esc(b.desc)+'">'+
+    '<div class="m-glow"></div><div class="m-in"><span>'+b.ic+'</span><div class="m-shine"></div></div>'+
+    (r==='legend'?'<span class="m-ribbon">★</span>':'')+
+  '</div>';
+}
+function renderBadges(){
+  const e=document.getElementById('v-badges');
+  const earned=state.badges;
+  let tiles=BADGES.map(function(b){
+    const has=earned.indexOf(b.id)>=0;
+    return '<div class="badge-tile" title="'+esc(b.desc)+'">'+
+      medalHTML(b,has)+
+      '<div class="bt-name">'+esc(b.nm)+'</div>'+
+      '<div class="bt-desc">'+esc(b.desc)+'</div>'+
+      '<span class="bt-rarity rar-'+(b.rar||'common')+'">'+BADGE_RARITY_LABEL[b.rar||'common']+'</span>'+
+      (has?'<div style="color:var(--ok);font-weight:700;font-size:.7rem;margin-top:4px">✓ Earned</div>':'<div style="color:#bbb;font-size:.7rem;margin-top:4px">Locked</div>')+
+    '</div>';
+  }).join('');
+  e.innerHTML='<span class="eyebrow">🎖️ Badge Collection</span><h2 class="h-title">Earn every medal!</h2>'+
+    '<p class="h-sub">Each badge gives bonus XP by rarity: <b>Common +15</b> · <b>Rare +35</b> · <b>Epic +60</b> · <b>Legendary +100</b>. Collect them all — the Legendary medals glow!</p>'+
+    '<div class="badge-earned-banner"><div style="font-size:2.2rem">🏅</div><div><b>'+earned.length+' / '+BADGES.length+'</b> medals earned<br><span style="opacity:.8;font-size:.85rem">'+(earned.length===BADGES.length?'You are a true SciLab Champion! 👑':'Keep exploring to collect the rest!')+'</span></div></div>'+
+    '<div class="badge-grid">'+tiles+'</div>';
 }
 
 /* ===== LEARN VIEW ===== */
@@ -1974,6 +2079,7 @@ function confirmLogin(){
   Store.set('sl_player_subjects',playerSubjects);
   Store.set('sl_player_student_id',playerStudentId);
   document.getElementById('nameModal').classList.add('hidden');
+  startPresence();
   renderProfileChip();
   ensureAuth().then(function(){
     syncToFirestore();
@@ -2049,6 +2155,22 @@ function showSyncStatus(s){
   lb.textContent=s==='ok'?'Synced':s==='error'?'Offline':s==='syncing'?'Saving…':(FB_CONFIGURED?'Ready':'Setup');
 }
 
+/* ===== PRESENCE (real-time "who is online") ===== */
+let _presenceTimer=null;
+function startPresence(){
+  if(!FB_CONFIGURED||!db||!myUid)return;
+  const ref=db.collection('presence').doc(myUid);
+  const beat=function(){
+    ref.set({uid:myUid,name:playerName||'student',section:playerSection||null,online:true,lastSeen:new Date().toISOString()},{merge:true}).catch(function(){});
+  };
+  beat();
+  if(_presenceTimer)clearInterval(_presenceTimer);
+  _presenceTimer=setInterval(beat,25000);
+  window.addEventListener('beforeunload',function(){
+    ref.set({online:false,lastSeen:new Date().toISOString()},{merge:true}).catch(function(){});
+  });
+}
+
 /* ===== NOTICE LISTENER (realtime) ===== */
 let noticeUnsub=null;
 function watchNotices(){
@@ -2121,6 +2243,7 @@ function init(){
   initFirebase();
   ensureAuth().then(function(){
     if(playerName)syncToFirestore();
+    startPresence();
     watchNotices();
   });
   // Auto-suggest weakest skill banner

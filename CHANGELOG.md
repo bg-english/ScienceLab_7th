@@ -2,6 +2,35 @@
 
 All notable changes to SciLab (7th Grade Science App) are documented here.
 
+## [5.3.0] — 2026-08-19 — "Insignias coleccionables + Presencia en tiempo real"
+
+### Added — Collectible badge medals
+- Redesigned badges as **shiny collectible medals** with rarity tiers:
+  Common (blue) · Rare (green) · Epic (purple) · **Legendary** (glowing gold).
+  Medals have a gradient ring, inner badge, animated shine sweep, and hover lift.
+- **26 badges** (was 13): added streaks 7/14, practice 250, accuracy 90,
+  perfect-10-in-a-row, per-skill-type (R/L/S/W), explorer-of-types, exam 90,
+  3 exams, 10 flashcards mastered.
+- **Badges are worth earning:** each new badge grants bonus XP by rarity
+  (+15 common / +35 rare / +60 epic / +100 legendary).
+- New **🎖️ Badges** tab (gallery): every medal earned/locked with rarity label,
+  progress bar, and a Legendary hint. Home now shows your badge collection.
+
+### Added — Real-time presence ("who is online")
+- Students send a heartbeat (every 25 s) to Firestore `presence/{uid}` and mark
+  themselves offline on unload.
+- Teacher dashboard: **🟢 Online Now** summary card, an "Students online right
+  now" live list, and a green/grey dot per student in the table.
+- Firestore rule for `presence` (student writes own, teacher reads all).
+
+### Fixed
+- **Readings/Writing/Diagnostics/Sections permission:** if the device isn't admin,
+  the panel now re-shows the teacher PIN gate automatically instead of just a
+  "permission denied" error (activate the PIN on the current device).
+
+### Deploy
+- `firebase deploy --only functions,firestore:rules,storage:rules`
+
 ## [5.2.0] — 2026-08-19 — "Panel de lecturas grabadas (Speaking)"
 
 ### Added

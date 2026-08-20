@@ -152,6 +152,8 @@ td { padding: 9px 12px; white-space: nowrap; }
 .attention-tag.yellow { border-color: var(--gold); color: #9a7000; }
 .attention-tag.gray { border-color: #bbb; color: #888; }
 .none-msg { font-size: 12px; color: #aaa; font-style: italic; }
+.online-chip{display:inline-flex;align-items:center;gap:4px;background:#d6f5e3;border:1px solid var(--ok);color:#0b7a3e;border-radius:20px;padding:5px 12px;font-size:13px;font-weight:600}
+.online-chip small{font-weight:400}
 
 /* Intervention logs */
 #interventionWrap td { vertical-align: top; }
@@ -583,8 +585,10 @@ function render() {
   const avgStreak = avg(students, 'streak');
   const totalBadges = students.reduce((sum, s) => sum + (Array.isArray(s.badges) ? s.badges.length : 0), 0);
   const avgBestExam = avg(students.filter(s => s.bestExamScore != null), 'bestExamScore');
+  const onlineNow = onlineStudents(90000);
   html += `<div class="summary-row">
     <div class="summary-card"><div class="label">Total Students</div><div class="value blue">${totalStudents}</div></div>
+    <div class="summary-card"><div class="label">🟢 Online Now</div><div class="value" style="color:var(--ok)">${onlineNow.length}</div></div>
     <div class="summary-card"><div class="label">Avg Accuracy</div><div class="value green">${avgAcc != null ? avgAcc.toFixed(1) + '%' : '---'}</div></div>
     <div class="summary-card"><div class="label">Avg Exam Score</div><div class="value gold">${avgExam != null ? avgExam.toFixed(1) + '%' : '---'}</div></div>
     <div class="summary-card"><div class="label">Avg Best Exam</div><div class="value gold">${avgBestExam != null ? avgBestExam.toFixed(1) + '%' : '---'}</div></div>
@@ -592,6 +596,13 @@ function render() {
     <div class="summary-card"><div class="label">Avg Streak</div><div class="value blue">${avgStreak != null ? avgStreak.toFixed(1) : '---'}</div></div>
     <div class="summary-card"><div class="label">Total Badges</div><div class="value green">${totalBadges}</div></div>
   </div>`;
+
+  // Online now banner (live)
+  if (onlineNow.length) {
+    const names = onlineNow.map(p => `<span class="online-chip" title="${esc((p.section === 'blue' ? 'Blue' : p.section === 'red' ? 'Red' : '') + ' · ' + relativeTime(p.lastSeen))}">🟢 ${esc(p.name || '?')}${p.section === 'blue' ? ' <small style="opacity:.6">Blue</small>' : p.section === 'red' ? ' <small style="opacity:.6">Red</small>' : ''}</span>`).join('');
+    html += `<div class="section-title">🟢 Students online right now (${onlineNow.length})</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${names}</div>`;
+  }
 
   // Class overview table
   html += `<div class="section-title">Class Overview</div>`;
@@ -633,8 +644,10 @@ function render() {
     const accVal = s.accuracy != null ? parseFloat(s.accuracy) : 0;
     const badgeCount = Array.isArray(s.badges) ? s.badges.length : 0;
     const bestExam = s.bestExamScore;
+    const pres = s.uid ? presenceMap[s.uid] : null;
+    const isOnline = pres && pres.online && pres.lastSeen && (Date.now() - new Date(pres.lastSeen).getTime()) < 90000;
     html += `<tr class="${noExam ? 'no-exam' : ''}">
-      <td style="font-weight:600">${esc(s.name) || '---'}</td>
+      <td style="font-weight:600"><span class="status-dot ${isOnline ? 'status-green' : 'status-gray'}" title="${isOnline ? 'Online now' : 'Offline'}"></span>${esc(s.name) || '---'}</td>
       <td><span class="badge ${secBadgeOf(s)}">${secNameOf(s) || '---'}</span></td>
       <td>${s.level ?? 0}</td>
       <td>${(s.totalXp || s.xp || 0).toLocaleString()}</td>
@@ -921,10 +934,15 @@ function render() {
 
   // Badges detail
   const BADGE_LABELS = {
-    first: '🎯 First Discovery', streak3: '🔥 3-Day Streak', practice50: '⚡ 50 Answered',
-    practice100: '💫 100 Answered', accuracy80: '🎖️ Accuracy Ace', photo: '🌞 Photosynthesis Pro',
-    resp: '🫁 Respiration Hero', tier2: '🧭 Level 2', tier4: '⚔️ Level 4', tier6: '🔑 Level 6',
-    exam: '🏆 Exam Warrior', perfect: '💯 Perfect Exam', explorer: '🌍 All Skills'
+    first: '🎯 First Discovery', streak3: '🔥 3-Day Streak', streak7: '⚡ 7-Day Flame', streak14: '🌋 14-Day Unstoppable',
+    practice50: '⚗️ 50 Answered', practice100: '💫 100 Answered', practice250: '🪐 250 Answered',
+    accuracy80: '🎖️ Accuracy Ace', accuracy90: '🏹 Bullseye 90%', perfect10: '💠 Perfect Storm',
+    photo: '🌞 Photosynthesis Pro', resp: '🫁 Respiration Hero',
+    skillR: '📖 Reading Scientist', skillL: '🎧 Listening Star', skillS: '🗣️ Speaking Hero', skillW: '✍️ Writing Master',
+    types10: '🧩 Explorer of Types',
+    tier2: '🧭 Level 2', tier4: '⚔️ Level 4', tier6: '👑 Level 6',
+    exam: '🏆 Exam Warrior', exam90: '🎓 Exam Elite', exams3: '🗂️ Exam Streak', perfect: '💯 Perfect Exam',
+    srs10: '🃏 Memory Master', explorer: '🌍 All Skills'
   };
   const studentsWithBadges = students.filter(s => Array.isArray(s.badges) && s.badges.length > 0);
   if (studentsWithBadges.length) {
@@ -1189,6 +1207,7 @@ async function loadReadings() {
     if (f) rows = rows.filter(r => r.section === f);
     renderReadings(rows);
   } catch (e) {
+    requireAdmin(e);
     Logger.push('error', 'admin', 'loadReadings:failed', null, null, { code: e && e.code, message: e && e.message }, null);
     list.innerHTML = `<p style="color:var(--bad)">Could not load recordings: ${esc(fbErrHint(e))}</p>`;
   }
@@ -1253,7 +1272,8 @@ async function loadWritings() {
     renderWritings(rows);
   } catch (e) {
     Logger.push('error','admin','loadWritings:failed',null,null,{code:e&&e.code,message:e&&e.message},null);
-    list.innerHTML = `<p style="color:var(--bad)">Could not load writing: ${esc(fbErrHint(e))}</p>`;
+    requireAdmin(e);
+    list.innerHTML = `<p style="color:var(--bad)">Could not load writing: ${esc(fbErrHint(e))}</p>`;        
   }
 }
 function renderWritings(rows) {
@@ -1325,7 +1345,8 @@ async function loadDiagnostics() {
     renderDiagnostics(logs);
   } catch (e) {
     Logger.push('error', 'system', 'loadDiagnostics:failed', null, null, { code: e && e.code, message: e && e.message }, null);
-    wrap.innerHTML = `<p style="color:var(--bad)">Could not read logs: ${esc(fbErrHint(e))}</p>`;
+    requireAdmin(e);
+    wrap.innerHTML = `<p style="color:var(--bad)">Could not read logs: ${esc(fbErrHint(e))}</p>`;           
   }
 }
 function renderDiagnostics(logs) {
@@ -1405,6 +1426,7 @@ async function loadSections() {
     if (!currentSectionId && SECTIONS.length) selectSection(SECTIONS[0].id);
   } catch (e) {
     console.warn('loadSections error', e);
+    requireAdmin(e);
     toastError('Could not load sections: '+fbErrHint(e));
   }
 }
@@ -1670,7 +1692,19 @@ function exportCodesCSV() {
 }
 
 // ===== REAL-TIME LISTENERS (Firebase) =====
-let unsubScores = null, unsubInterventions = null, unsubSections = null;
+let unsubScores = null, unsubInterventions = null, unsubSections = null, unsubPresence = null;
+let presenceMap = {}; // uid -> {name, section, lastSeen, online}
+function onlineStudents(withinMs) {
+  const now = Date.now(); const max = withinMs || 90000;
+  const out = [];
+  Object.keys(presenceMap).forEach(uid => {
+    const p = presenceMap[uid];
+    if (!p) return;
+    const fresh = p.online && p.lastSeen && (now - new Date(p.lastSeen).getTime()) < max;
+    if (fresh) out.push(p);
+  });
+  return out;
+}
 function startListeners() {
   if (!CONFIGURED || !db) return;
   if (unsubScores) unsubScores();
@@ -1687,6 +1721,13 @@ function startListeners() {
   unsubSections = db.collection('sections').onSnapshot(() => {
     loadSections().catch(() => {});
   }, (err) => { console.warn('Sections listener error', err); toastError('Sections feed error'); });
+
+  if (unsubPresence) unsubPresence();
+  unsubPresence = db.collection('presence').onSnapshot((snap) => {
+    presenceMap = {};
+    snap.forEach(doc => { presenceMap[doc.id] = { ...doc.data(), uid: doc.id }; });
+    if (document.getElementById('mainContent').style.display !== 'none') refreshData();
+  }, (err) => { console.warn('Presence listener error', err); });
 }
 
 // Initial load
@@ -1741,6 +1782,15 @@ function showAdminPinGate() {
   document.body.appendChild(ov);
   setTimeout(function () { const i = document.getElementById('adminPinInput'); if (i) i.focus(); }, 100);
   document.getElementById('adminPinInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') submitTeacherPin(); });
+}
+// If an admin-only call fails with permission-denied (e.g. device not admin),
+// re-show the PIN gate so the teacher can activate this device.
+function requireAdmin(err) {
+  if (err && (err.code === 'permission-denied' || /permission/i.test(String(err.message || '')))) {
+    showAdminPinGate();
+    return true;
+  }
+  return false;
 }
 async function submitTeacherPin() {
   const input = document.getElementById('adminPinInput');
