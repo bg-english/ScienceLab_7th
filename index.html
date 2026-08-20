@@ -467,6 +467,10 @@ const Store=(()=>{let ok=false,mem={};try{const k="__sl";localStorage.setItem(k,
 /* ===== HTML escaping (prevents stored XSS from DB/localStorage data) ===== */
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
 function escAttr(s){return esc(s).replace(/`/g,'&#96;');}
+// Safe feedback renderer: converts <b>/<i> to <strong>/<em> and strips ALL other
+// tags, so feedback never shows raw HTML — always clean and professional.
+function safeFb(fb){return String(fb==null?'':fb).replace(/<b\s*>/gi,'<strong>').replace(/<\/b\s*>/gi,'</strong>').replace(/<i\s*>/gi,'<em>').replace(/<\/i\s*>/gi,'</em>').replace(/<[^>]+>/g,'');}
+const FB_SHOW_MS=3000; // how long answer feedback stays before the next question
 
 /* ============================================================
    LOGGER — internal police. Records every transaction with
@@ -884,10 +888,10 @@ const ITEMS=[
   {"sk":"human-organs","type":"listen","audio":"The path of air is nose, trachea, bronchi and lungs.","q":"You heard: what comes after the trachea?","o":["Bronchi","Nose","Alveoli only","Stomach"],"a":0,"fb":"Air goes nose → trachea → bronchi → lungs.","skillType":"L"},
   {"sk":"plant-resp","type":"listen","audio":"Respiration releases energy from glucose using oxygen, and it happens all the time.","q":"You heard: what does respiration release?","o":["Energy","Water","Color","Sound"],"a":0,"fb":"Respiration releases energy from glucose.","skillType":"L"},
   /* ===== NEW: SPEAKING (TTS model + self-assess) ===== */
-  {"sk":"resp-vocab","type":"speak","word":"oxygen","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Great — keep practicing the word 'oxygen'!","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"photosynthesis","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Nice! 'Photosynthesis' is a long word — great job!","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"diaphragm","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Excellent! The diaphragm is the breathing muscle.","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"}
+  {"sk":"resp-vocab","type":"speak","word":"oxygen","q":"Say the word 'oxygen'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Great — keep practicing the word 'oxygen'!","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"photosynthesis","q":"Say the word 'photosynthesis'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Nice! 'Photosynthesis' is a long word — great job!","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"diaphragm","q":"Say the word 'diaphragm'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Excellent! The diaphragm is the breathing muscle.","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Say the word 'alveoli'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"}
 ];
 
 /* ===== DATA: FLASHCARDS ===== */
@@ -1093,8 +1097,8 @@ function submitAnswer(optIdx, orderCorrect){
     document.querySelectorAll('.order-opt').forEach((b)=>{b.disabled=true;});
   }
   let fbHtml = isCorrect
-    ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+(it.fb||'')+'</div>'
-    : '<div class="eq-fb no">❌ <b>Not quite.</b> '+(it.fb||'')+'<br><span class="hint-tip" onclick="showHint()">💡 Need a hint?</span></div>';
+    ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+safeFb(it.fb)+'</div>'
+    : '<div class="eq-fb no">❌ <b>Not quite.</b> '+safeFb(it.fb)+'<br><span class="hint-tip" onclick="showHint()">💡 Need a hint?</span></div>';
   fbEl.innerHTML=fbHtml;
   if(isCorrect){miniConfetti();}
   // record
@@ -1116,19 +1120,20 @@ function submitAnswer(optIdx, orderCorrect){
       if(d.mastery&&it.sk&&d.mastery[it.sk])state.mastery[it.sk]=d.mastery[it.sk];
       persist();renderHUD();
     }
-    if(d.correct!==undefined&&d.correct!==isCorrect){
-      // server overrides a mismatch (should not normally happen) — resurface verdict
+    // Only resurface the server verdict if we are still showing THIS question,
+    // and always render the feedback cleanly (no raw HTML).
+    if(curItem===it&&d.correct!==undefined&&d.correct!==isCorrect){
       const fb2=document.getElementById('eqFb');
       if(fb2)fb2.innerHTML = d.correct
-        ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+esc(d.fb||it.fb||'')+'</div>'
-        : '<div class="eq-fb no">❌ <b>Not quite.</b> '+esc(d.fb||it.fb||'')+'</div>';
+        ? '<div class="eq-fb ok">✅ <b>Correct!</b> '+safeFb(d.fb||it.fb)+'</div>'
+        : '<div class="eq-fb no">❌ <b>Not quite.</b> '+safeFb(d.fb||it.fb)+'</div>';
     }
     });
   }
   syncToFirestore();
   // next
   document.getElementById('eqFb').scrollIntoView({behavior:'smooth',block:'nearest'});
-  setTimeout(()=>{qIdx++;renderItem();},1600);
+  setTimeout(()=>{qIdx++;renderItem();},FB_SHOW_MS);
 }
 // Ask the server to verify this answer (authoritative). Returns null when offline.
 function verifyServerAnswer(it, choice){
@@ -1554,9 +1559,9 @@ function examAnswer(j){
   document.querySelectorAll('.exam-q .eq-opt').forEach((b,i)=>{b.disabled=true;if(i===it.a)b.classList.add('correct');else if(i===j)b.classList.add('wrong');});
   if(j===it.a)examScore++;
   const e=document.getElementById('v-exam');
-  const fb=document.createElement('div');fb.className='eq-fb '+(j===it.a?'ok':'no');fb.style.marginTop='14px';fb.innerHTML=(j===it.a?'✅ Correct! ':'❌ ')+it.fb;
+  const fb=document.createElement('div');fb.className='eq-fb '+(j===it.a?'ok':'no');fb.style.marginTop='14px';fb.innerHTML=(j===it.a?'✅ <b>Correct!</b> ':'❌ <b>Not quite.</b> ')+safeFb(it.fb);
   document.querySelector('.exam-q').appendChild(fb);
-  setTimeout(()=>{examIdx++;renderExamQ();},1500);
+  setTimeout(()=>{examIdx++;renderExamQ();},FB_SHOW_MS);
 }
 function finishExam(){
   const pct=Math.round(examScore/examQueue.length*100);

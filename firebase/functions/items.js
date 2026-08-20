@@ -92,9 +92,9 @@ module.exports = [
   {"sk":"human-organs","type":"listen","audio":"The path of air is nose, trachea, bronchi and lungs.","q":"You heard: what comes after the trachea?","o":["Bronchi","Nose","Alveoli only","Stomach"],"a":0,"fb":"Air goes nose → trachea → bronchi → lungs.","skillType":"L"},
   {"sk":"plant-resp","type":"listen","audio":"Respiration releases energy from glucose using oxygen, and it happens all the time.","q":"You heard: what does respiration release?","o":["Energy","Water","Color","Sound"],"a":0,"fb":"Respiration releases energy from glucose.","skillType":"L"},
   /* ===== NEW: SPEAKING (TTS model + self-assess) ===== */
-  {"sk":"resp-vocab","type":"speak","word":"oxygen","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Great — keep practicing the word 'oxygen'!","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"photosynthesis","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Nice! 'Photosynthesis' is a long word — great job!","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"diaphragm","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Excellent! The diaphragm is the breathing muscle.","skillType":"S"},
-  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"}
+  {"sk":"resp-vocab","type":"speak","word":"oxygen","q":"Say the word 'oxygen'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Great — keep practicing the word 'oxygen'!","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"photosynthesis","q":"Say the word 'photosynthesis'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Nice! 'Photosynthesis' is a long word — great job!","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"diaphragm","q":"Say the word 'diaphragm'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Excellent! The diaphragm is the breathing muscle.","skillType":"S"},
+  {"sk":"resp-vocab","type":"speak","word":"alveoli","q":"Say the word 'alveoli'. Listen, repeat out loud and rate yourself.","o":["🗣️ I said it!","🔁 Let me listen again"],"a":0,"fb":"Perfect — alveoli are the tiny air sacs!","skillType":"S"}
 
 ];
